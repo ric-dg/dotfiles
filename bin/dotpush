@@ -1,0 +1,65 @@
+#!/bin/sh
+# dotpush: copy your server dotfiles to one or more ssh hosts.
+#
+#   dotpush [-n] host...      -n = dry run (only show what would change)
+#
+# Sends everything under ~/.config/dotpush/files/ to $HOME on each host, in one ssh
+# round trip (instant when a Konsole tab to that host is already open, thanks to
+# ControlMaster). A file that would change is first backed up as <file>.bak-<time>;
+# identical files are left alone. Symlinks in files/ are followed (tar -h), so a file
+# kept elsewhere (e.g. ~/src/csw/csw) can be linked in and still arrives as a file.
+# Runs with any POSIX sh (dash locally, sh remotely) and works whatever the remote
+# login shell is.
+set -eu
+
+src=${DOTPUSH_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/dotpush/files} # filled by the dotfiles installer
+dry=0
+if [ "${1-}" = -n ]; then dry=1; shift; fi
+if [ $# -eq 0 ]; then
+	echo "usage: dotpush [-n] host..." >&2
+	exit 2
+fi
+[ -d "$src" ] || { echo "dotpush: $src does not exist" >&2; exit 1; }
+
+# Runs on the server. Must not contain single quotes (it is wrapped in them below).
+# shellcheck disable=SC2016 # expanded by the remote sh, on purpose
+remote='set -eu
+dry=$1
+t=$(mktemp -d)
+trap "rm -rf \"$t\"" EXIT
+tar -xf - -C "$t"
+stamp=$(date +%Y%m%d-%H%M%S)
+cd "$t"
+find . -type f | sort | while IFS= read -r f; do
+	f=${f#./}
+	dst=$HOME/$f
+	if [ -f "$dst" ] && cmp -s "$f" "$dst" 2>/dev/null; then
+		echo "  same      $f"
+	elif [ "$dry" = 1 ]; then
+		echo "  would set $f"
+	else
+		mkdir -p "$(dirname "$dst")"
+		if [ -f "$dst" ]; then
+			b=$dst.bak-$stamp n=1
+			while [ -e "$b" ]; do b=$dst.bak-$stamp.$n; n=$((n + 1)); done
+			cp -p "$dst" "$b"
+			echo "  backup    ${b#"$HOME"/}"
+		fi
+		cp "$f" "$dst"
+		echo "  updated   $f"
+	fi
+done
+missing=
+for c in tmux nvim vim; do command -v $c >/dev/null 2>&1 || missing="$missing $c"; done
+[ -z "$missing" ] || echo "  note: not installed here:$missing"'
+
+status=0
+for host in "$@"; do
+	echo "$host:"
+	# -T: no terminal needed; tar streams the files over the same connection
+	tar -C "$src" -chf - . | ssh -T -- "$host" "sh -c '$remote' dotpush $dry" || {
+		echo "  FAILED" >&2
+		status=1
+	}
+done
+exit $status

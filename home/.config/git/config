@@ -1,0 +1,22 @@
+# git: shared settings. Identity and anything private go in ~/.config/git/config.local
+# (untracked), e.g.  [user] name = ...  email = <id>+<login>@users.noreply.github.com
+[core]
+	editor = nvim
+[init]
+	defaultBranch = main
+[pull]
+	ff = only
+[push]
+	autoSetupRemote = true
+[fetch]
+	prune = true
+[diff]
+	algorithm = histogram
+[merge]
+	conflictStyle = zdiff3
+[rerere]
+	enabled = true
+[pager]
+	branch = false
+[include]
+	path = config.local

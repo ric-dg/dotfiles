@@ -1,0 +1,11 @@
+# If dash is ever removed, point /bin/sh back to bash first, so /bin/sh never dangles.
+# Companion to dash-as-sh.hook (CHANGELOG 23/29).
+[Trigger]
+Type = Package
+Operation = Remove
+Target = dash
+
+[Action]
+Description = Re-pointing /bin/sh to bash before removing dash...
+When = PreTransaction
+Exec = /usr/bin/ln -sfT bash /usr/bin/sh

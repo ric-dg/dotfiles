@@ -1,6 +1,0 @@
-[core]
-	editor = nvim
-[pager]
-	branch = less -R
-[url "git@github.com:"]
-	insteadOf = https://github.com/
