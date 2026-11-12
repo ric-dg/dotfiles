@@ -1,201 +1,71 @@
 # dotfiles
 
-Managed via a bare Git repository using:
+Lean, fast terminal setup for a low-end Linux laptop and the servers it works on.
+POSIX `sh` login shell, fish inside tmux, plugin-free Neovim, hardened ssh.
+Everything is measured for process count and start-up time.
 
-```bash
-git --git-dir=$HOME/.dotfiles --work-tree=$HOME
+```sh
+git clone https://github.com/ric-dg/dotfiles ~/src/dotfiles
+~/src/dotfiles/install.sh --dry-run     # see what would change
+~/src/dotfiles/install.sh               # link everything (backs up what's there)
+~/src/dotfiles/install.sh check         # report drift
+~/src/dotfiles/install.sh root          # print the system (sudo) steps; never runs them
 ```
 
-Based on the Atlassian bare repo dotfiles approach.
+## What's in it
 
----
-
-## What's tracked
-
-| File | Purpose |
+| | |
 |---|---|
-| `.tmux.conf` | tmux configuration |
-| `.config/fish/config.fish` | Fish shell config + abbreviations |
-| `.config/mise/config.toml` | Mise tool versions |
-| `.gitconfig` | Git configuration |
-| `.dotfiles-bootstrap.sh` | Bootstrap script |
-| `.profile` | PATH setup for mise shims |
+| `home/.profile` | Login environment (POSIX: dash, bash, SDDM/Plasma all read it): `~/.local/bin` on PATH, editor, `ENV` |
+| `home/.shrc` | Interactive dash/sh: line editing, a prompt with no forks, aliases; loads `~/.config/sh/local.sh` |
+| `home/.bashrc` | Sources `~/.shrc` and `~/.config/bash/*.sh` drop-ins |
+| fish | Prompt with 0 processes outside git repos and 1 inside (2.5× faster than before); fzf/zoxide init cached, regenerated only when the tool updates; abbreviations |
+| tmux | One file for laptop and servers: fish, else `/bin/sh`; `tmux-256color` where available; OSC 52 clipboard through ssh; host name in the status line |
+| Neovim | No plugins. `vim.loader`; over ssh, yanks reach your local clipboard (OSC 52); guarded for Neovim 0.7+ |
+| `.vimrc` | The same keys for vim-only servers; vim-tiny skips it silently |
+| git | Sensible defaults (`ff=only`, histogram diff, zdiff3, rerere); identity in untracked `config.local` |
+| ssh | Shared defaults in `~/.ssh/config.d/`, included **last** (after `Match all`), so per-host settings win. Connection reuse (`ControlMaster`, `%C`), post-quantum key exchange first, AES-GCM first (cheap with AES-NI). Your host list stays in `~/.ssh/config`, never here. |
+| mise | **Server profile only**: pinned tools for machines without root or with old packages (`./install.sh tools`). The laptop uses pacman, so nothing is installed twice. |
+| `bin/dotpush` | `dotpush host…` copies tmux/nvim/vim configs to servers in one ssh round trip, backing up anything it replaces |
+| Konsole | Ctrl+Tab / Ctrl+Shift+Tab switch tabs like a browser |
+| `root/` | pacman hooks that keep `/bin/sh` on dash across bash updates, and restore bash if dash is removed |
 
-Separate repository:
+## Profiles
 
-- Neovim config: https://github.com/yerdzxc/nvim
+- **laptop** (the default when a desktop session is running): everything.
+- **server**: fish, tmux, nvim, vim, git, ssh, the mise config. The server's own `.profile` and
+  `.bashrc` are left alone. Or skip cloning entirely and run `dotpush server` from
+  the laptop.
 
----
+## Local, never committed
 
-## Security
+| File | For |
+|---|---|
+| `~/.config/sh/local.sh` | Machine-specific aliases (e.g. per-account `claude-*`) |
+| `~/.config/fish/conf.d/local.fish`, `~/.config/nvim/local.lua` | Machine-specific fish and Neovim additions |
+| `~/.config/git/config.local` | `[user] name/email` (use your noreply address) |
+| `~/.ssh/config` | Your hosts |
+| `~/.config/dotfiles/private-terms` | Words the privacy check must never let into this repo |
 
-Only non-sensitive configs are tracked.
+## How it installs
 
-Never commit:
+Files are **symlinked** to the repo, so `git diff` shows every edit you make in `$HOME`.
+Anything already there is moved to `~/.local/state/dotfiles/backup/<time>/`. Re-running
+changes nothing, and `--dry-run` shows the plan first. The installer is POSIX `sh` and
+never runs `sudo`.
 
-- API keys
-- tokens
-- `.env` files
-- SSH private keys
-- cloud credentials
-- personal secrets
+Optional companion: [csw](https://github.com/ric-dg/csw) (one `claude` across several
+accounts). When it's installed, the installer generates its fast `claude` function for
+fish and sh.
 
-Use:
+## Development
 
-- environment variables
-- password managers
-- secret management systems
-
-instead of storing secrets in dotfiles.
-
----
-
-## Bootstrap
-
-Supported platforms:
-
-- Linux x86_64
-- Linux arm64
-- macOS Intel
-- macOS Apple Silicon
-
-Interactive install:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/yerdzxc/dotfiles/master/.dotfiles-bootstrap.sh | bash
+```sh
+tests/run.sh        # installs into throwaway HOMEs under dash and bash, loads every config in its program
+tests/privacy.sh    # no private IPs, keys, tokens, emails or private terms (also the pre-commit hook)
+git config core.hooksPath .githooks
 ```
 
-Non-interactive install:
+## License
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/yerdzxc/dotfiles/master/.dotfiles-bootstrap.sh | bash -s -- -y
-```
-
----
-
-## Installed Components
-
-### Runtime / Tool Manager
-
-- mise
-
-### Shell / CLI Tools
-
-Installed through mise:
-
-- neovim
-- tmux
-- lazygit
-- bat
-- eza
-- fd
-- fzf
-- ripgrep
-- zoxide
-- go
-- gh
-
-### Language Servers
-
-Installed through bun:
-
-- typescript-language-server
-- yaml-language-server
-- bash-language-server
-- dockerfile-language-server-nodejs
-- vscode-langservers-extracted
-
-Native binaries:
-
-- terraform-ls
-- lua-language-server
-
-### SSH Config
-
-Security hardening and performance optimizations (applied by bootstrap, existing settings preserved):
-
-- `Host github.com` block with `IdentityFile` and `IdentitiesOnly yes`
-- `StrictHostKeyChecking ask` — verify host keys
-- `ForwardAgent no` / `ForwardX11 no` — prevent forwarding leaks
-- `VisualHostKey yes` — visually verify host key fingerprint
-- Post-quantum `KexAlgorithms` and `Ciphers`
-- `ServerAliveInterval 60` — keep NAT sessions alive
-- `ControlMaster auto` — connection multiplexing
-
----
-
-## Usage
-
-Recommended shell function:
-
-```bash
-dotfiles() {
-  git --git-dir="$HOME/.dotfiles" --work-tree="$HOME" "$@"
-}
-```
-
-Examples:
-
-```bash
-dotfiles status
-
-dotfiles add .config/fish/config.fish
-
-dotfiles commit -m "update fish config"
-
-dotfiles push
-```
-
-List tracked files:
-
-```bash
-dotfiles ls-files
-```
-
----
-
-## Troubleshooting
-
-### `command not found: dotfiles`
-
-Older versions used a Bash alias inside scripts.
-
-Aliases are not expanded in non-interactive shells by default.
-
-Fixed by using a shell function instead.
-
-### Checkout conflicts
-
-If bootstrap reports checkout conflicts:
-
-```bash
-git --git-dir=$HOME/.dotfiles --work-tree=$HOME checkout
-```
-
-Then move or back up conflicting files before retrying.
-
-### mise shims not detected
-
-Restart shell:
-
-```bash
-exec fish
-```
-
-or:
-
-```bash
-source ~/.profile
-```
-
----
-
-## Philosophy
-
-This setup prioritizes:
-
-- reproducible environments
-- minimal dependencies
-- cross-platform compatibility
-- fast terminal workflows
-- clean developer onboarding
+[MIT](LICENSE)
