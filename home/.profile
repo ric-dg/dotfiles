@@ -3,17 +3,20 @@
 # Keep it to environment variables only: it runs once per login, not per terminal.
 
 case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH=$HOME/.local/bin:$PATH ;; esac
+# per-user tools installed by mise (install.sh tools --user / no root): shims, no hook
+[ ! -d "$HOME/.local/share/mise/shims" ] || case ":$PATH:" in *":$HOME/.local/share/mise/shims:"*) ;; *) PATH=$HOME/.local/share/mise/shims:$PATH ;; esac
 export PATH
 
 export EDITOR=nvim VISUAL=nvim
 
-# Android SDK command-line tools (system-wide at /opt/android-sdk, installed by
-# the AUR cmdline-tools package + sdkmanager build-tools). Only the cmdline-tools
-# bin dir goes on PATH: build-tools is versioned, so android-install.sh locates
-# aapt2 under $ANDROID_HOME/build-tools/*/aapt2 instead of pinning a version here.
-export ANDROID_HOME=/opt/android-sdk ANDROID_SDK_ROOT=/opt/android-sdk
-case ":$PATH:" in *":$ANDROID_HOME/cmdline-tools/latest/bin:"*) ;; *) PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH ;; esac
-export PATH
+# Android SDK command-line tools, only if installed at /opt/android-sdk (e.g. Arch's
+# android-sdk-cmdline-tools-latest); one builtin test, no cost otherwise. build-tools is
+# versioned, so only cmdline-tools/latest/bin goes on PATH.
+if [ -d /opt/android-sdk ]; then
+	export ANDROID_HOME=/opt/android-sdk ANDROID_SDK_ROOT=/opt/android-sdk
+	case ":$PATH:" in *":$ANDROID_HOME/cmdline-tools/latest/bin:"*) ;; *) PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH ;; esac
+	export PATH
+fi
 
 # Interactive sh/dash reads this file at start-up (prompt, line editing, aliases).
 export ENV="$HOME/.shrc"

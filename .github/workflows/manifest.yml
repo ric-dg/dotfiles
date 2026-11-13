@@ -1,0 +1,26 @@
+name: manifest
+# Every package name in tools.conf must exist in its distribution's index and in mise's
+# registry. Runs when tools.conf changes, and weekly (distributions rename packages).
+on:
+  push:
+    branches: [main]
+    paths: [tools.conf, tests/manifest.sh]
+  pull_request:
+    paths: [tools.conf, tests/manifest.sh]
+  schedule:
+    - cron: '23 5 * * 1'
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  names:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install mise (for its registry)
+        run: curl -fsSL --proto '=https' --tlsv1.2 https://mise.run | sh
+      - name: Check package names
+        run: PATH="$HOME/.local/bin:$PATH" sh tests/manifest.sh

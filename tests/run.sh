@@ -32,10 +32,10 @@ suite() { # suite SHELL
 	check "laptop: .profile linked" linked .profile home/.profile
 	check "laptop: tmux linked" linked .config/tmux/tmux.conf home/.config/tmux/tmux.conf
 	check "laptop: dotpush linked" linked .local/bin/dotpush bin/dotpush
-	check "laptop: android-connect linked" linked .local/bin/android-connect.sh bin/android-connect.sh
-	check "laptop: android-install linked" linked .local/bin/android-install.sh bin/android-install.sh
-	check "laptop: android-devices linked" linked .local/bin/android-devices.sh bin/android-devices.sh
-	check "laptop: no mise config (tools come from pacman)" [ ! -e "$H/.config/mise/config.toml" ]
+	check "laptop: android scripts NOT linked unless the android group is selected" [ ! -e "$H/.local/bin/android-connect.sh" ]
+	check "laptop: no mise config is linked (mise keeps its own, untracked)" [ ! -e "$H/.config/mise/config.toml" ]
+	check "laptop: fish notice linked" linked .config/fish/conf.d/dotfiles.fish home/.config/fish/conf.d/dotfiles.fish
+	check "install records where the repo is" [ "$(cat "$H/.local/state/dotfiles/repo")" = "$REPO" ]
 	check "laptop: dotpush server set uses the same tmux file" linked .config/dotpush/files/.tmux.conf home/.config/tmux/tmux.conf
 	check "existing file backed up" sh -c 'grep -q "my old vimrc" "$1"/.local/state/dotfiles/backup/*/.vimrc' _ "$H"
 	check "ssh include appended once" [ "$(grep -c 'dotfiles: shared defaults' "$H/.ssh/config")" = 1 ]
@@ -72,14 +72,55 @@ suite() { # suite SHELL
 		out=$(PATH="$H/fakelsp:$PATH" nvim --headless -c 'lua local bad = {} for name in pairs(vim.lsp._enabled_configs or {}) do local c = vim.lsp.config[name] if vim.fn.executable(c.cmd[1]) ~= 1 then bad[#bad + 1] = name end end io.write(#bad == 0 and "all-installed" or table.concat(bad, ","))' +q 2>&1)
 		check "nvim enables only servers whose command exists" [ "$out" = all-installed ]
 	fi
-	out=$(i lsp gopls bashls)
-	check "install.sh lsp reports missing servers" has "$out" 'missing  bashls'
-	check "install.sh lsp prints an install command" sh -c 'printf "%s" "$1" | grep -qE "pacman -S --needed|npm i -g bash-language-server"' _ "$out"
+	out=$(PATH="$H/fakelsp:/usr/bin:/bin" i lsp)
+	check "install.sh lsp reports a missing server" has "$out" 'missing  ruff'
+	check "install.sh lsp says how to add servers" has "$out" 'install.sh tools lsp:'
 	if command -v tmux >/dev/null; then
 		check "tmux: status bar at the bottom locally" [ "$(env -u SSH_CONNECTION tmux -L dt1 -f "$H/.config/tmux/tmux.conf" start \; show -gv status-position \; kill-server)" = bottom ]
 		check "tmux: status bar on top inside ssh (nested)" [ "$(SSH_CONNECTION='1.2.3.4 1 5.6.7.8 22' tmux -L dt2 -f "$H/.config/tmux/tmux.conf" start \; show -gv status-position \; kill-server)" = top ]
 	fi
 	check "root prints the hook commands" sh -c '"$@" | grep -q "dash-as-sh.hook"' _ $SH "$REPO/install.sh" root
+
+	# android group: selecting it links the helper scripts
+	i tools android --dry-run >/dev/null
+	mkdir -p "$H/.local/state/dotfiles"; echo "core dev extra android" >"$H/.local/state/dotfiles/groups"
+	i --profile laptop >/dev/null
+	check "android group links the helper scripts" linked .local/bin/android-connect.sh bin/android-connect.sh
+
+	# tools: plan split (system with root/sudo, per user with mise) on a PATH without the tool
+	echo "core lsp:gopls" >"$H/.local/state/dotfiles/groups"
+	out=$(i tools --dry-run)
+	check "tools plan lists a missing tool" has "$out" 'missing (.*gopls'
+	out=$(i tools --dry-run --user)
+	check "tools --user plans mise for it" has "$out" 'per user (mise):.*go:golang.org/x/tools/gopls'
+	out=$(i lsp)
+	check "lsp lists servers from tools.conf" has "$out" 'gopls (gopls)'
+
+	# shell notice: once per boot, re-checked with builtins, names this checkout
+	echo "no-such-tool-xyz sh|zzz" >"$H/.local/state/dotfiles/missing"
+	rm -f "$H/run/dotfiles-warned"; mkdir -p "$H/run"
+	out=$(env -i HOME="$H" PATH="$PATH" XDG_RUNTIME_DIR="$H/run" ENV="$H/.shrc" dash -i -c 'exit' 2>&1 </dev/null)
+	check "notice names the missing tool" has "$out" 'missing no-such-tool-xyz'
+	check "notice skips tools that are installed (sh)" sh -c '! printf "%s" "$1" | grep -q " sh"' _ "$out"
+	check "notice points at this checkout" has "$out" "$REPO/install.sh tools"
+	out=$(env -i HOME="$H" PATH="$PATH" XDG_RUNTIME_DIR="$H/run" ENV="$H/.shrc" dash -i -c 'exit' 2>&1 </dev/null)
+	check "notice shows only once per boot" sh -c '! printf "%s" "$1" | grep -q "^dotfiles:"' _ "$out"
+	rm -f "$H/.local/state/dotfiles/repo" "$H/run/dotfiles-warned"
+	out=$(env -i HOME="$H" PATH="$PATH" XDG_RUNTIME_DIR="$H/run" ENV="$H/.shrc" dash -i -c 'exit' 2>&1 </dev/null)
+	check "notice without a recorded repo path prints no error" sh -c '! printf "%s" "$1" | grep -q "cannot open"' _ "$out"
+	if command -v fish >/dev/null; then
+		rm -f "$H/run/dotfiles-warned"
+		out=$(env -i HOME="$H" PATH="$PATH" XDG_RUNTIME_DIR="$H/run" fish -i -c 'exit' 2>&1 </dev/null)
+		check "fish notice names the missing tool" has "$out" 'missing no-such-tool-xyz'
+	fi
+
+	# setup with scripted answers (dry run: nothing installed or written)
+	printf 'server\nn\ny\ny\nn\ngopls\nn\nn\n' >"$H/answers"
+	out=$(DOTFILES_TTY="$H/answers" i setup --dry-run 2>&1)
+	check "setup takes scripted answers in order" has "$out" 'which ones.*gopls'
+	check "setup plans the chosen language server" has "$out" 'gopls'
+	out=$(i setup --yes --dry-run 2>&1)
+	check "setup --yes runs on defaults" has "$out" 'done. Re-run any time'
 
 	# csw's generated files, with a fake csw
 	mkdir -p "$H/bin"
@@ -108,7 +149,7 @@ suite() { # suite SHELL
 	check "server: .bashrc untouched" grep -q 'distro bashrc' "$H/.bashrc"
 	check "server: no .profile link" [ ! -L "$H/.profile" ]
 	check "server: no dotpush" [ ! -e "$H/.local/bin/dotpush" ]
-	check "server: mise config linked" linked .config/mise/config.toml home/.config/mise/config.toml
+	check "server: no mise config linked" [ ! -e "$H/.config/mise/config.toml" ]
 	check "server: check passes" i check
 	rm -rf "$H"
 }
