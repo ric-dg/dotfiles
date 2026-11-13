@@ -9,6 +9,7 @@ ok() { PASS=$((PASS + 1)); }
 bad() { FAIL=$((FAIL + 1)); printf '  FAIL [%s] %s\n' "$SH" "$*"; }
 check() { d=$1; shift; if "$@" >/dev/null 2>&1; then ok; else bad "$d"; fi; }
 linked() { [ "$(readlink "$H/$1")" = "$REPO/$2" ]; }
+has() { printf '%s' "$1" | grep -q -- "$2"; }
 
 suite() { # suite SHELL
 	SH=$1
@@ -60,6 +61,24 @@ suite() { # suite SHELL
 	if command -v tmux >/dev/null; then check "tmux config loads" tmux -L dotfiles-test -f "$H/.config/tmux/tmux.conf" start \; kill-server; fi
 	if command -v nvim >/dev/null; then check "nvim config loads" nvim --clean --headless -u "$H/.config/nvim/init.lua" +q; fi
 	check "git config parses" git config -f "$H/.config/git/config" --list
+	# dev layer: native LSP enables only installed servers; install hints; nested tmux
+	check "nvim lsp dir linked" linked .config/nvim/lsp home/.config/nvim/lsp
+	if command -v nvim >/dev/null && nvim --headless -c 'if has("nvim-0.11") | qa | else | cq | endif' 2>/dev/null; then
+		mkdir -p "$H/fakelsp"; printf '#!/bin/sh\nexit 0\n' >"$H/fakelsp/gopls"; chmod +x "$H/fakelsp/gopls"
+		out=$(PATH="$H/fakelsp:$PATH" nvim --headless -c 'lua io.write(table.concat(vim.tbl_keys(vim.lsp._enabled_configs or {}), ","))' +q 2>&1)
+		check "nvim enables gopls when its command exists" has "$out" gopls
+		# the CI image ships some servers (e.g. clangd), so check the rule, not a fixed list:
+		# every enabled server's command must exist
+		out=$(PATH="$H/fakelsp:$PATH" nvim --headless -c 'lua local bad = {} for name in pairs(vim.lsp._enabled_configs or {}) do local c = vim.lsp.config[name] if vim.fn.executable(c.cmd[1]) ~= 1 then bad[#bad + 1] = name end end io.write(#bad == 0 and "all-installed" or table.concat(bad, ","))' +q 2>&1)
+		check "nvim enables only servers whose command exists" [ "$out" = all-installed ]
+	fi
+	out=$(i lsp gopls bashls)
+	check "install.sh lsp reports missing servers" has "$out" 'missing  bashls'
+	check "install.sh lsp prints an install command" sh -c 'printf "%s" "$1" | grep -qE "pacman -S --needed|npm i -g bash-language-server"' _ "$out"
+	if command -v tmux >/dev/null; then
+		check "tmux: status bar at the bottom locally" [ "$(env -u SSH_CONNECTION tmux -L dt1 -f "$H/.config/tmux/tmux.conf" start \; show -gv status-position \; kill-server)" = bottom ]
+		check "tmux: status bar on top inside ssh (nested)" [ "$(SSH_CONNECTION='1.2.3.4 1 5.6.7.8 22' tmux -L dt2 -f "$H/.config/tmux/tmux.conf" start \; show -gv status-position \; kill-server)" = top ]
+	fi
 	check "root prints the hook commands" sh -c '"$@" | grep -q "dash-as-sh.hook"' _ $SH "$REPO/install.sh" root
 
 	# csw's generated files, with a fake csw

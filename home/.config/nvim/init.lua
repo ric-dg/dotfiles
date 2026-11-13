@@ -60,5 +60,35 @@ vim.api.nvim_create_autocmd("TextYankPost", {
   callback = function() (vim.hl or vim.highlight).on_yank() end,
 })
 
+-- Language servers, built in (Neovim 0.11+, no plugins). Each server is defined in
+-- lsp/<name>.lua; only those whose command is installed are enabled, and a server
+-- starts only when a file of its type is opened. Same file on laptop and servers:
+-- install the servers you need (`~/src/dotfiles/install.sh lsp` prints how).
+-- Built-in keys: K hover, grn rename, gra code action, grr references, gri implementation,
+-- gO symbols, [d / ]d diagnostics, <C-s> signature help (insert mode).
+if vim.fn.has("nvim-0.11") == 1 then
+  local servers = { "lua_ls", "bashls", "pyright", "ruff", "ts_ls", "svelte", "gopls", "rust_analyzer",
+    "clangd", "yamlls", "jsonls", "dockerls", "terraformls", "marksman", "taplo" }
+  local enabled = {}
+  for _, name in ipairs(servers) do
+    local cfg = vim.lsp.config[name]
+    if cfg and cfg.cmd and type(cfg.cmd) == "table" and vim.fn.executable(cfg.cmd[1]) == 1 then
+      enabled[#enabled + 1] = name
+    end
+  end
+  vim.lsp.enable(enabled)
+  vim.diagnostic.config({ virtual_text = true, severity_sort = true })
+  o.completeopt = { "menu", "menuone", "noinsert", "popup" }
+  vim.api.nvim_create_autocmd("LspAttach", {
+    callback = function(ev)
+      local client = vim.lsp.get_client_by_id(ev.data.client_id)
+      if client and client:supports_method("textDocument/completion") then
+        vim.lsp.completion.enable(true, client.id, ev.buf, { autotrigger = true })
+      end
+      map("n", "<leader>F", function() vim.lsp.buf.format({ async = true }) end, { buffer = ev.buf, desc = "format" })
+    end,
+  })
+end
+
 -- machine-specific additions (untracked): ~/.config/nvim/local.lua
 pcall(dofile, vim.fn.stdpath("config") .. "/local.lua")

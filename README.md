@@ -10,6 +10,7 @@ git clone https://github.com/ric-dg/dotfiles ~/src/dotfiles
 ~/src/dotfiles/install.sh               # link everything (backs up what's there)
 ~/src/dotfiles/install.sh check         # report drift
 ~/src/dotfiles/install.sh root          # print the system (sudo) steps; never runs them
+~/src/dotfiles/install.sh lsp           # which language servers Neovim can use here, and how to add more
 ```
 
 ## What's in it
@@ -21,7 +22,7 @@ git clone https://github.com/ric-dg/dotfiles ~/src/dotfiles
 | `home/.bashrc` | Sources `~/.shrc` and `~/.config/bash/*.sh` drop-ins |
 | fish | Prompt with 0 processes outside git repos and 1 inside (2.5× faster than before); fzf/zoxide init cached, regenerated only when the tool updates; abbreviations |
 | tmux | One file for laptop and servers: fish, else `/bin/sh`; `tmux-256color` where available; OSC 52 clipboard through ssh; host name in the status line |
-| Neovim | No plugins. `vim.loader`; over ssh, yanks reach your local clipboard (OSC 52); guarded for Neovim 0.7+ |
+| Neovim | No plugins. `vim.loader`; built-in language servers (0.11+, enabled per installed server); over ssh, yanks reach your local clipboard (OSC 52); guarded for Neovim 0.7+ |
 | `.vimrc` | The same keys for vim-only servers; vim-tiny skips it silently |
 | git | Sensible defaults (`ff=only`, histogram diff, zdiff3, rerere); identity in untracked `config.local` |
 | ssh | Shared defaults in `~/.ssh/config.d/`, included **last** (after `Match all`), so per-host settings win. Connection reuse (`ControlMaster`, `%C`), post-quantum key exchange first, AES-GCM first (cheap with AES-NI). Your host list stays in `~/.ssh/config`, never here. |
@@ -29,6 +30,28 @@ git clone https://github.com/ric-dg/dotfiles ~/src/dotfiles
 | `bin/dotpush` | `dotpush host…` copies tmux/nvim/vim configs to servers in one ssh round trip, backing up anything it replaces |
 | Konsole | Ctrl+Tab / Ctrl+Shift+Tab switch tabs like a browser |
 | `root/` | pacman hooks that keep `/bin/sh` on dash across bash updates, and restore bash if dash is removed |
+
+## Develop locally or on a server: same setup
+
+The editor and terminal configs are identical on the laptop and on servers, so you
+can develop in either place.
+
+- **Neovim language servers** (Neovim 0.11+, built in, no plugins): 15 servers are
+  defined in `home/.config/nvim/lsp/` (Lua, shell, Python with pyright + ruff,
+  TypeScript, Svelte, Go, Rust, C/C++, YAML, JSON, Dockerfile, Terraform, Markdown,
+  TOML).
+  - Only servers whose command is installed are enabled, and each starts only when
+    you open its file type, so nothing runs on a low-end machine until you edit.
+  - Completion pops up as you type.
+  - Built-in keys: `K` hover, `grn` rename, `gra` code action, `grr` references,
+    `[d`/`]d` diagnostics; `<Space>F` formats.
+  - On Neovim older than 0.11 the block is skipped.
+- `./install.sh lsp [name…]` shows which servers are available on this machine and
+  prints how to install the rest: pacman (+ AUR) on Arch; npm / go / rustup / pipx
+  elsewhere, usually without root.
+- **Nested tmux:** a tmux started inside an ssh session puts its status bar on top in
+  a different shade, so laptop tmux → ssh → server tmux stays readable. Send keys to
+  the inner one by pressing the prefix twice (`C-b C-b`).
 
 ## Profiles
 
