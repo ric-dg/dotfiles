@@ -9,11 +9,15 @@
 #                                                     language servers, system steps, optional extras
 #   ./install.sh [install] [--profile laptop|server] [--dry-run]   link everything (default)
 #   ./install.sh check     [--profile laptop|server]  report link drift (exit 1) + missing tools
-#   ./install.sh tools     [GROUP...] [--user] [--yes] [--dry-run]
+#   ./install.sh tools     [GROUP...] [--system|--user] [--sudo=CMD] [--yes] [--dry-run]
 #                          install missing tools of the saved groups (or the GROUPs given:
-#                          core dev extra android lsp lsp:NAME); --user forces mise (no root)
+#                          core dev extra android lsp lsp:NAME). Default: system packages if
+#                          you are root or have sudo / sudo-rs / doas / run0 (--sudo=CMD picks
+#                          one), else per user with mise. --system / --user force a method.
 #   ./install.sh lsp                                  which language servers Neovim can use here
 #   ./install.sh root                                 print the sudo steps (never runs them)
+#   ./install.sh uninstall [--dry-run]                remove our links + the ssh include (keeps
+#                                                     backups, local files and installed tools)
 #
 # Profiles:
 #   laptop  everything: shells (.profile/.shrc/.bashrc), fish, tmux, nvim, vim, git, ssh,
@@ -39,6 +43,7 @@ BACKUP=$STATE/backup/$STAMP
 DRY=0
 YES=0
 FORCE_USER=0
+FORCE_SYSTEM=0
 CHANGED=0
 DRIFT=0
 
@@ -172,6 +177,36 @@ EOF
 	return $DRIFT
 }
 
+# remove what install linked (only symlinks into this repo) and the ssh include block;
+# backups and your local files stay. Tools are not uninstalled (they may predate us).
+cmd_uninstall() {
+	local src dst cfg=$HOME/.ssh/config tmp last
+	say "dotfiles: uninstalling links into $REPO$([ "$DRY" = 1 ] && echo ' (dry run)')"
+	PROFILE=laptop
+	while read -r src dst; do
+		if [ -L "$HOME/$dst" ] && [ "$(readlink "$HOME/$dst")" = "$REPO/$src" ]; then
+			say "  unlink  ~/$dst"
+			run rm "$HOME/$dst"
+		fi
+	done <<EOF
+$(files; printf '%s\n' "profiles/laptop/.local/share/kxmlgui5/konsole/konsoleui.rc .local/share/kxmlgui5/konsole/konsoleui.rc" "bin/android-connect.sh .local/bin/android-connect.sh" "bin/android-install.sh .local/bin/android-install.sh" "bin/android-devices.sh .local/bin/android-devices.sh")
+EOF
+	if grep -qF '# dotfiles: shared defaults' "$cfg" 2>/dev/null; then
+		say "  remove  the shared-defaults include from ~/.ssh/config"
+		if [ "$DRY" = 0 ]; then
+			tmp=$(mktemp "$cfg.XXXXXX")
+			awk '/^# dotfiles: shared defaults/ { skip = 3 } skip > 0 { skip--; next } { print }' "$cfg" >"$tmp"
+			chmod 600 "$tmp"
+			mv "$tmp" "$cfg"
+		fi
+	fi
+	run rm -f "$STATE/missing" "$STATE/repo" "$STATE/groups"
+	last=''
+	for tmp in "$STATE"/backup/*/; do [ -d "$tmp" ] && last=${tmp%/}; done # sorted: newest last
+	[ -z "$last" ] || say "  your previous files are in ${last#"$HOME"/} (copy back what you want)"
+	say "  kept: your local files (~/.config/sh/local.sh, …), installed tools, backups"
+}
+
 cmd_root() {
 	cat <<EOF
 # System steps for the laptop profile (Arch). Review, then run them yourself.
@@ -196,10 +231,22 @@ detect_pm() {
 	elif has apk; then PM=apk COL=6
 	elif has brew; then PM=brew COL=7
 	fi
+	# privileges: already root (no prefix); an explicit choice (--sudo=CMD / DOTFILES_SUDO);
+	# else the first of sudo, sudo-rs, doas, run0. Homebrew installs as the user.
+	local c
 	if [ "$PM" = brew ] || [ "$(id -u)" = 0 ]; then ROOT=yes
-	elif has sudo; then ROOT=sudo SUDO=sudo
+	elif [ -n "${DOTFILES_SUDO-}" ]; then
+		has "$DOTFILES_SUDO" || err "--sudo: '$DOTFILES_SUDO' not found"
+		ROOT=$DOTFILES_SUDO SUDO=$DOTFILES_SUDO
+	else
+		for c in sudo sudo-rs doas run0; do
+			if has "$c"; then ROOT=$c SUDO=$c; break; fi
+		done
 	fi
 	[ "$FORCE_USER" = 0 ] || ROOT=no
+	if [ "$FORCE_SYSTEM" = 1 ] && [ "$ROOT" = no ]; then
+		err "--system needs root, sudo, sudo-rs, doas or run0 (or use --user)"
+	fi
 }
 
 pm_install_cmd() { # the install command for this package manager (without packages)
@@ -395,6 +442,10 @@ cmd_setup() {
 	*) for g in $REPLY; do sel="$sel lsp:$g"; done ;;
 	esac
 	groups_save "${sel# }"
+	if [ "$ROOT" != no ] && [ "$PM" != brew ] && [ "$FORCE_USER" = 0 ] && [ "$FORCE_SYSTEM" = 0 ]; then
+		ask "   install as: system (packages via ${SUDO:-root}) or user (mise, in your home, no root)?" system
+		case $REPLY in u*) FORCE_USER=1; ROOT=no ;; esac
+	fi
 	plan
 	if [ "$NMISS" -gt 0 ]; then
 		say "4. Missing tools ($NMISS):$([ -n "$SYS" ] && echo " system:$SYS")$([ -n "$USR" ] && echo " · per user:$USR")$([ -n "$MAN" ] && echo " · by hand:$MAN")"
@@ -437,10 +488,12 @@ main() {
 			elif [ "$1" = lsp ]; then cmd=lsp
 			else err "groups go after 'tools'"; fi
 			;;
-		install | check | root | setup) cmd=$1 ;;
+		install | check | root | setup | uninstall) cmd=$1 ;;
 		tools) cmd=tools ;;
 		--yes | -y) YES=1 ;;
 		--user) FORCE_USER=1 ;;
+		--system) FORCE_SYSTEM=1 ;;
+		--sudo=*) DOTFILES_SUDO=${1#*=} ;;
 		--profile) PROFILE=${2:?--profile needs laptop or server}; shift ;;
 		--profile=*) PROFILE=${1#*=} ;;
 		--dry-run | -n) DRY=1 ;;
@@ -463,6 +516,7 @@ main() {
 		;;
 	lsp) cmd_lsp ;;
 	setup) cmd_setup ;;
+	uninstall) cmd_uninstall ;;
 	esac
 }
 

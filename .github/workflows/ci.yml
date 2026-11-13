@@ -19,7 +19,7 @@ jobs:
       - name: Install shells and tools
         run: sudo apt-get update -qq && sudo apt-get install -y -qq dash fish tmux neovim shellcheck
       - name: Lint
-        run: shellcheck install.sh bin/* tests/*.sh .githooks/pre-commit
+        run: shellcheck install.sh bin/* tests/*.sh scripts/*.sh .githooks/pre-commit
       - name: Privacy
         run: sh tests/privacy.sh
       - name: Test

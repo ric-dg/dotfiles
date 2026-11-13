@@ -96,6 +96,25 @@ suite() { # suite SHELL
 	out=$(i lsp)
 	check "lsp lists servers from tools.conf" has "$out" 'gopls (gopls)'
 
+	# privileges: a PATH without sudo/sudo-rs/run0 but with a (fake) doas picks doas
+	mkdir -p "$H/nosudo"
+	for f in /usr/bin/* /bin/*; do
+		case ${f##*/} in sudo | sudo-rs | run0 | doas) continue ;; esac
+		[ -e "$H/nosudo/${f##*/}" ] || ln -s "$f" "$H/nosudo/${f##*/}" 2>/dev/null
+	done
+	printf '#!/bin/sh\nexec "$@"\n' >"$H/nosudo/doas"; chmod +x "$H/nosudo/doas"
+	if [ "$(id -u)" != 0 ]; then
+		out=$(PATH="$H/nosudo" i tools --dry-run lsp:gopls)
+		check "doas is used when there is no sudo" has "$out" 'root: doas'
+		rm "$H/nosudo/doas"
+		out=$(PATH="$H/nosudo" i tools --dry-run lsp:gopls)
+		check "no sudo-like command: per user (mise)" has "$out" 'per user (mise)'
+		out=$(PATH="$H/nosudo" i tools --dry-run --system lsp:gopls 2>&1 || true)
+		check "--system without privileges explains itself" has "$out" '--system needs root'
+	fi
+	out=$(i tools --dry-run --sudo=sh lsp:gopls)
+	check "--sudo=CMD picks the command" has "$out" 'root: sh'
+
 	# shell notice: once per boot, re-checked with builtins, names this checkout
 	echo "no-such-tool-xyz sh|zzz" >"$H/.local/state/dotfiles/missing"
 	rm -f "$H/run/dotfiles-warned"; mkdir -p "$H/run"
@@ -115,12 +134,24 @@ suite() { # suite SHELL
 	fi
 
 	# setup with scripted answers (dry run: nothing installed or written)
-	printf 'server\nn\ny\ny\nn\ngopls\nn\nn\n' >"$H/answers"
+	printf 'server\nn\ny\ny\nn\ngopls\nuser\nn\nn\n' >"$H/answers"
 	out=$(DOTFILES_TTY="$H/answers" i setup --dry-run 2>&1)
 	check "setup takes scripted answers in order" has "$out" 'which ones.*gopls'
-	check "setup plans the chosen language server" has "$out" 'gopls'
+	if [ "$(id -u)" = 0 ] || command -v sudo >/dev/null || command -v doas >/dev/null || command -v run0 >/dev/null; then
+		check "setup asks system or user, and 'user' plans mise" has "$out" 'per user:.*go:golang.org/x/tools/gopls'
+	fi
 	out=$(i setup --yes --dry-run 2>&1)
 	check "setup --yes runs on defaults" has "$out" 'done. Re-run any time'
+
+	# uninstall: only our links + the ssh block; backups and local files stay
+	echo 'mine' >"$H/.config/sh-local-marker"
+	i uninstall >/dev/null
+	check "uninstall removes our links" [ ! -L "$H/.config/fish/config.fish" ]
+	check "uninstall removes the ssh include block" sh -c '! grep -q "dotfiles:" "$1"' _ "$H/.ssh/config"
+	check "uninstall keeps the user's own ssh hosts" grep -q 'Host special' "$H/.ssh/config"
+	check "uninstall keeps backups" [ -d "$H/.local/state/dotfiles/backup" ]
+	check "uninstall leaves unrelated files" [ -f "$H/.config/sh-local-marker" ]
+	i --profile laptop >/dev/null
 
 	# csw's generated files, with a fake csw
 	mkdir -p "$H/bin"
@@ -153,6 +184,12 @@ suite() { # suite SHELL
 	check "server: check passes" i check
 	rm -rf "$H"
 }
+
+# docs/tools.md must match tools.conf (regenerate with scripts/gen-docs.sh)
+DOCS=$(mktemp -d); cp -r "$REPO/." "$DOCS/"; sh "$DOCS/scripts/gen-docs.sh" >/dev/null
+SH=docs
+check "docs/tools.md is up to date with tools.conf" cmp -s "$DOCS/docs/tools.md" "$REPO/docs/tools.md"
+rm -rf "$DOCS"
 
 for s in ${SHELLS:-dash bash}; do
 	command -v "$s" >/dev/null 2>&1 || continue
