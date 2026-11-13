@@ -67,7 +67,10 @@ suite() { # suite SHELL
 		mkdir -p "$H/fakelsp"; printf '#!/bin/sh\nexit 0\n' >"$H/fakelsp/gopls"; chmod +x "$H/fakelsp/gopls"
 		out=$(PATH="$H/fakelsp:$PATH" nvim --headless -c 'lua io.write(table.concat(vim.tbl_keys(vim.lsp._enabled_configs or {}), ","))' +q 2>&1)
 		check "nvim enables gopls when its command exists" has "$out" gopls
-		check "nvim enables nothing else" [ "$out" = gopls ]
+		# the CI image ships some servers (e.g. clangd), so check the rule, not a fixed list:
+		# every enabled server's command must exist
+		out=$(PATH="$H/fakelsp:$PATH" nvim --headless -c 'lua local bad = {} for name in pairs(vim.lsp._enabled_configs or {}) do local c = vim.lsp.config[name] if vim.fn.executable(c.cmd[1]) ~= 1 then bad[#bad + 1] = name end end io.write(#bad == 0 and "all-installed" or table.concat(bad, ","))' +q 2>&1)
+		check "nvim enables only servers whose command exists" [ "$out" = all-installed ]
 	fi
 	out=$(i lsp gopls bashls)
 	check "install.sh lsp reports missing servers" has "$out" 'missing  bashls'
