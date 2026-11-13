@@ -7,6 +7,8 @@
 #   ./install.sh check     [--profile laptop|server]               report drift; exit 1 if any
 #   ./install.sh root                                              print the sudo steps (never runs them)
 #   ./install.sh tools                                             install mise + the pinned tools
+#   ./install.sh lsp [NAME...]                                     which language servers Neovim can use;
+#                                                                  print install commands for the rest
 #
 # Profiles:
 #   laptop  everything: shells (.profile/.shrc/.bashrc), fish, tmux, nvim, vim, git, ssh,
@@ -43,6 +45,7 @@ home/.config/fish/config.fish                 .config/fish/config.fish
 home/.config/fish/functions/fish_prompt.fish  .config/fish/functions/fish_prompt.fish
 home/.config/tmux/tmux.conf                   .config/tmux/tmux.conf
 home/.config/nvim/init.lua                    .config/nvim/init.lua
+home/.config/nvim/lsp                         .config/nvim/lsp
 home/.vimrc                                   .vimrc
 home/.config/git/config                       .config/git/config
 home/.ssh/config.d/10-hardening.conf          .ssh/config.d/10-hardening.conf
@@ -60,6 +63,7 @@ bin/android-install.sh                        .local/bin/android-install.sh
 bin/android-devices.sh                        .local/bin/android-devices.sh
 home/.config/tmux/tmux.conf                   .config/dotpush/files/.tmux.conf
 home/.config/nvim/init.lua                    .config/dotpush/files/.config/nvim/init.lua
+home/.config/nvim/lsp                         .config/dotpush/files/.config/nvim/lsp
 home/.vimrc                                   .config/dotpush/files/.vimrc
 EOF
 }
@@ -171,6 +175,61 @@ chsh -s /bin/sh
 EOF
 }
 
+# name | command | Arch package (aur: = AUR) | install elsewhere, without root where possible
+lsp_table() {
+	cat <<'EOF'
+lua_ls|lua-language-server|lua-language-server|GitHub release: LuaLS/lua-language-server
+bashls|bash-language-server|bash-language-server|npm i -g bash-language-server
+pyright|pyright-langserver|pyright|npm i -g pyright
+ruff|ruff|ruff|pipx install ruff
+ts_ls|typescript-language-server|typescript-language-server|npm i -g typescript typescript-language-server
+svelte|svelteserver|svelte-language-server|npm i -g svelte-language-server
+gopls|gopls|gopls|go install golang.org/x/tools/gopls@latest
+rust_analyzer|rust-analyzer|rust-analyzer|rustup component add rust-analyzer
+clangd|clangd|clang|apt install clangd (Debian/Ubuntu)
+yamlls|yaml-language-server|yaml-language-server|npm i -g yaml-language-server
+jsonls|vscode-json-language-server|vscode-json-languageserver|npm i -g vscode-langservers-extracted
+dockerls|docker-langserver|dockerfile-language-server|npm i -g dockerfile-language-server-nodejs
+terraformls|terraform-ls|aur:terraform-ls|GitHub release: hashicorp/terraform-ls
+marksman|marksman|marksman|GitHub release: artempyanykh/marksman
+taplo|taplo|taplo-cli|cargo install taplo-cli --locked
+EOF
+}
+
+# which servers Neovim will enable here, and how to install the missing ones (prints only)
+cmd_lsp() {
+	local name cmd arch other want pac='' aur='' rest='' have=0 miss=0
+	say "Neovim language servers (enabled automatically when their command is on PATH):"
+	while IFS='|' read -r name cmd arch other; do
+		if [ $# -gt 0 ]; then
+			want=0
+			for w in "$@"; do [ "$w" = "$name" ] && want=1; done
+			[ "$want" = 1 ] || continue
+		fi
+		if has "$cmd"; then
+			say "  ok       $name ($cmd)"; have=$((have + 1))
+		else
+			say "  missing  $name ($cmd)"; miss=$((miss + 1))
+			case $arch in aur:*) aur="$aur ${arch#aur:}" ;; *) pac="$pac $arch" ;; esac
+			rest="$rest
+  $name: $other"
+		fi
+	done <<EOF
+$(lsp_table)
+EOF
+	say "$have installed, $miss missing. Each runs only while you edit its file type."
+	[ "$miss" -gt 0 ] || return 0
+	if has pacman; then
+		say "install (Arch):"
+		# shellcheck disable=SC2086 # $pac is a word list on purpose
+		[ -z "$pac" ] || say "  sudo pacman -S --needed $(printf '%s\n' $pac | sort -u | tr '\n' ' ' | sed 's/ $//')"
+		[ -z "$aur" ] || say "  yay -S$aur   (AUR)"
+	else
+		say "install (no pacman; most work without root):$rest"
+	fi
+	say "pick only what you edit: e.g. ./install.sh lsp bashls lua_ls yamlls"
+}
+
 cmd_tools() {
 	if ! has mise; then
 		say "installing mise (https://mise.run) to ~/.local/bin"
@@ -186,6 +245,7 @@ main() {
 	while [ $# -gt 0 ]; do
 		case $1 in
 		install | check | root | tools) cmd=$1 ;;
+		lsp) cmd=lsp; shift; break ;;
 		--profile) PROFILE=${2:?--profile needs laptop or server}; shift ;;
 		--profile=*) PROFILE=${1#*=} ;;
 		--dry-run | -n) DRY=1 ;;
@@ -203,6 +263,7 @@ main() {
 	check) cmd_check ;;
 	root) cmd_root ;;
 	tools) cmd_tools ;;
+	lsp) cmd_lsp "$@" ;;
 	esac
 }
 
