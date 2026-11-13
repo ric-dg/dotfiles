@@ -21,14 +21,12 @@ git clone https://github.com/ric-dg/dotfiles ~/dotfiles     # any location works
 Re-run it any time. Everything has a non-interactive form too:
 
 ```sh
-./install.sh --dry-run          # what linking would change
-./install.sh                    # link (backs up what's there; re-running changes nothing)
-./install.sh check              # link drift (exit 1) + missing tools
-./install.sh tools [GROUP...]   # install missing tools: core dev extra android lsp lsp:NAME
-./install.sh tools --user       # same, without root: per-user with mise
-./install.sh lsp                # which language servers Neovim can use here
-./install.sh root               # print optional system steps (never runs sudo itself)
+./install.sh check                # link drift + missing tools
+./install.sh tools lsp:gopls      # add a tool or language server (system with sudo, else per user)
+./install.sh uninstall --dry-run  # what removing it would do
 ```
+
+Everything else is in [docs/install.md](docs/install.md).
 
 ## Any OS, with or without root
 
@@ -37,7 +35,7 @@ group, a command, and the package name on each system:
 
 | Where | How tools are installed |
 |---|---|
-| Arch (pacman), Debian/Ubuntu (apt), Fedora (dnf), Alpine (apk), macOS (Homebrew) | **System packages** when you are root or have `sudo` |
+| Arch (pacman), Debian/Ubuntu (apt), Fedora (dnf), Alpine (apk), macOS (Homebrew) | **System packages** when you are root or have `sudo`, `sudo-rs`, `doas` or `run0` (`--sudo=CMD` picks one) |
 | No root, or no package for that tool | **Per user with [mise](https://mise.jdx.dev)**: prebuilt binaries in `~/.local/share/mise`, put on PATH through mise's shims (no shell hook, so no cost per prompt) |
 | Neither | Named as "install by hand" |
 
@@ -50,28 +48,19 @@ shells (sh/dash, bash, fish) mention it once per boot, and re-check each entry w
 builtins, so a tool you installed since then isn't reported and a normal shell start
 costs no extra process.
 
-## What's in it
+## Documentation
 
-| | |
+| Doc | |
 |---|---|
-| `home/.profile` | Login environment (POSIX; also read by display managers): `~/.local/bin` and mise shims on PATH, editor, `ENV` |
-| `home/.shrc` | Interactive sh/dash: line editing, a prompt with no forks, aliases; loads `~/.config/sh/local.sh` |
-| `home/.bashrc` | Sources `~/.shrc` and `~/.config/bash/*.sh` drop-ins |
-| fish | A prompt with 0 processes outside git repos and 1 inside; fzf/zoxide init cached and regenerated only when the tool updates; abbreviations |
-| tmux | One file for workstation and servers: fish if installed, else `/bin/sh`; OSC 52 clipboard through ssh; host name in the status line; inside ssh the bar moves to the top, so nested tmux stays readable (inner prefix: `C-b C-b`) |
-| Neovim | No plugins. `vim.loader`; **built-in language servers** (Neovim 0.11+) for 15 languages, each enabled only if installed and started only for its file type; OSC 52 yanks over ssh; guarded for Neovim 0.7+ |
-| `.vimrc` | The same keys for vim-only machines |
-| git | Sensible defaults (`ff=only`, histogram diff, zdiff3, rerere); your identity in an untracked `config.local` |
-| ssh | Shared defaults in `~/.ssh/config.d/`, included **last** (after `Match all`) so your per-host settings win: connection reuse (`ControlMaster`), post-quantum key exchange first, AES-GCM first. Your host list stays in your own `~/.ssh/config` |
-| `bin/dotpush` | `dotpush host…`: send the tmux/Neovim/vim configs to servers in one ssh round trip, backing up anything replaced |
-| Konsole | Ctrl+Tab / Ctrl+Shift+Tab switch tabs (linked only if Konsole is installed) |
-| `bin/android-*.sh` | adb/scrcpy helpers (linked only with the `android` tool group) |
-| `root/` | Optional pacman hooks that keep `/bin/sh` on dash across bash updates (Arch; shown by `install.sh root`) |
+| [docs/install.md](docs/install.md) | `setup` step by step, every command, root / sudo / doas / run0 / per-user, update, uninstall |
+| [docs/tools.md](docs/tools.md) | Every tool by group, with its package name on each system (generated from `tools.conf`) |
+| [docs/configs.md](docs/configs.md) | What each config does, and its keys (shells, tmux, Neovim + language servers, vim, git, ssh) |
 
 ## Make it yours
 
 - **Fork it, then edit `tools.conf`** to add or remove tools: one line each, with `-`
-  where a system has no package. `tests/manifest.sh` checks your names.
+  where a system has no package. `tests/manifest.sh` checks your names, and
+  `scripts/gen-docs.sh` regenerates [docs/tools.md](docs/tools.md).
 - **Machine-specific settings go in untracked local files**, which the tracked ones load:
 
 | File | For |
