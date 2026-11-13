@@ -31,6 +31,9 @@ suite() { # suite SHELL
 	check "laptop: .profile linked" linked .profile home/.profile
 	check "laptop: tmux linked" linked .config/tmux/tmux.conf home/.config/tmux/tmux.conf
 	check "laptop: dotpush linked" linked .local/bin/dotpush bin/dotpush
+	check "laptop: android-connect linked" linked .local/bin/android-connect.sh bin/android-connect.sh
+	check "laptop: android-install linked" linked .local/bin/android-install.sh bin/android-install.sh
+	check "laptop: android-devices linked" linked .local/bin/android-devices.sh bin/android-devices.sh
 	check "laptop: no mise config (tools come from pacman)" [ ! -e "$H/.config/mise/config.toml" ]
 	check "laptop: dotpush server set uses the same tmux file" linked .config/dotpush/files/.tmux.conf home/.config/tmux/tmux.conf
 	check "existing file backed up" sh -c 'grep -q "my old vimrc" "$1"/.local/state/dotfiles/backup/*/.vimrc' _ "$H"

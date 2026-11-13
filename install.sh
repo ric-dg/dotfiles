@@ -55,6 +55,9 @@ home/.shrc                                    .shrc
 home/.bashrc                                  .bashrc
 profiles/laptop/.local/share/kxmlgui5/konsole/konsoleui.rc  .local/share/kxmlgui5/konsole/konsoleui.rc
 bin/dotpush                                   .local/bin/dotpush
+bin/android-connect.sh                        .local/bin/android-connect.sh
+bin/android-install.sh                        .local/bin/android-install.sh
+bin/android-devices.sh                        .local/bin/android-devices.sh
 home/.config/tmux/tmux.conf                   .config/dotpush/files/.tmux.conf
 home/.config/nvim/init.lua                    .config/dotpush/files/.config/nvim/init.lua
 home/.vimrc                                   .config/dotpush/files/.vimrc
