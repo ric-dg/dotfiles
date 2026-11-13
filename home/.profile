@@ -9,7 +9,7 @@ export EDITOR=nvim VISUAL=nvim
 
 # Android SDK command-line tools (system-wide at /opt/android-sdk, installed by
 # the AUR cmdline-tools package + sdkmanager build-tools). Only the cmdline-tools
-# bin dir goes on PATH: build-tools is versioned, so robot-install.sh locates
+# bin dir goes on PATH: build-tools is versioned, so android-install.sh locates
 # aapt2 under $ANDROID_HOME/build-tools/*/aapt2 instead of pinning a version here.
 export ANDROID_HOME=/opt/android-sdk ANDROID_SDK_ROOT=/opt/android-sdk
 case ":$PATH:" in *":$ANDROID_HOME/cmdline-tools/latest/bin:"*) ;; *) PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH ;; esac
