@@ -4,10 +4,10 @@
 #   dotpush [-n] host...      -n = dry run (only show what would change)
 #
 # Sends everything under ~/.config/dotpush/files/ to $HOME on each host, in one ssh
-# round trip (instant when a Konsole tab to that host is already open, thanks to
+# round trip (instant when an ssh session to that host is already open, thanks to
 # ControlMaster). A file that would change is first backed up as <file>.bak-<time>;
 # identical files are left alone. Symlinks in files/ are followed (tar -h), so a file
-# kept elsewhere (e.g. ~/src/csw/csw) can be linked in and still arrives as a file.
+# kept elsewhere can be linked in and still arrives as a file.
 # Runs with any POSIX sh (dash locally, sh remotely) and works whatever the remote
 # login shell is.
 set -eu

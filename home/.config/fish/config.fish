@@ -6,9 +6,11 @@ set -gx MANPAGER "nvim +Man!"
 contains -- $HOME/.local/bin $PATH; or set -gx PATH $HOME/.local/bin $PATH   # builtins only, no fork
 
 # Android SDK command-line tools (system-wide; the scripts find build-tools/aapt2 themselves)
-set -gx ANDROID_HOME /opt/android-sdk
-set -gx ANDROID_SDK_ROOT /opt/android-sdk
-contains -- $ANDROID_HOME/cmdline-tools/latest/bin $PATH; or set -gx PATH $ANDROID_HOME/cmdline-tools/latest/bin $PATH
+if test -d /opt/android-sdk   # Android SDK, only if installed (see ~/.profile)
+    set -gx ANDROID_HOME /opt/android-sdk
+    set -gx ANDROID_SDK_ROOT /opt/android-sdk
+    contains -- $ANDROID_HOME/cmdline-tools/latest/bin $PATH; or set -gx PATH $ANDROID_HOME/cmdline-tools/latest/bin $PATH
+end
 
 if status is-interactive
     set -g fish_greeting
@@ -32,5 +34,4 @@ if status is-interactive
     abbr -a cat bat --paging=never
     abbr -a v nvim
     abbr -a g git
-    abbr -a qt quick-toggle
 end

@@ -1,4 +1,4 @@
-" vim on servers without Neovim. Pushed by dotpush: edit ~/.config/dotpush/files/.vimrc on the laptop, then re-push.
+" vim for machines without Neovim (also sent to servers by dotpush). Same keys as the Neovim config.
 " Same options and <Space> keys as the Neovim config. Everything sits inside `if 1` so a minimal
 " vim-tiny ("vi") skips it silently instead of printing errors.
 if 1

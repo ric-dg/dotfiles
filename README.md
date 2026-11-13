@@ -1,93 +1,114 @@
 # dotfiles
 
-Lean, fast terminal setup for a low-end Linux laptop and the servers it works on.
-POSIX `sh` login shell, fish inside tmux, plugin-free Neovim, hardened ssh.
-Everything is measured for process count and start-up time.
+A lean, fast terminal setup that works the same on your workstation and on the servers
+you ssh into: a POSIX `sh` login shell, fish inside tmux, plugin-free Neovim with built-in
+language servers, and hardened ssh. It's built for slow machines, so nothing starts a
+process it doesn't need. The interactive installer adapts to your OS and to whether you
+have root.
 
 ```sh
-git clone https://github.com/ric-dg/dotfiles ~/src/dotfiles
-~/src/dotfiles/install.sh --dry-run     # see what would change
-~/src/dotfiles/install.sh               # link everything (backs up what's there)
-~/src/dotfiles/install.sh check         # report drift
-~/src/dotfiles/install.sh root          # print the system (sudo) steps; never runs them
-~/src/dotfiles/install.sh lsp           # which language servers Neovim can use here, and how to add more
+git clone https://github.com/ric-dg/dotfiles ~/dotfiles     # any location works
+~/dotfiles/install.sh setup                                 # interactive; --yes = defaults
 ```
+
+`setup` asks, one step at a time:
+1. **Profile:** workstation ("laptop") or server.
+2. **Link the configs:** anything already there is backed up first.
+3. **Tool groups and language servers** to use.
+4. **Installs what's missing.**
+5. **Optional system steps and extras.**
+
+Re-run it any time. Everything has a non-interactive form too:
+
+```sh
+./install.sh --dry-run          # what linking would change
+./install.sh                    # link (backs up what's there; re-running changes nothing)
+./install.sh check              # link drift (exit 1) + missing tools
+./install.sh tools [GROUP...]   # install missing tools: core dev extra android lsp lsp:NAME
+./install.sh tools --user       # same, without root: per-user with mise
+./install.sh lsp                # which language servers Neovim can use here
+./install.sh root               # print optional system steps (never runs sudo itself)
+```
+
+## Any OS, with or without root
+
+The tools the configs expect are listed in [`tools.conf`](tools.conf). Each line gives a
+group, a command, and the package name on each system:
+
+| Where | How tools are installed |
+|---|---|
+| Arch (pacman), Debian/Ubuntu (apt), Fedora (dnf), Alpine (apk), macOS (Homebrew) | **System packages** when you are root or have `sudo` |
+| No root, or no package for that tool | **Per user with [mise](https://mise.jdx.dev)**: prebuilt binaries in `~/.local/share/mise`, put on PATH through mise's shims (no shell hook, so no cost per prompt) |
+| Neither | Named as "install by hand" |
+
+CI checks every package name in `tools.conf` against the real package index of each
+distribution, and against mise's registry (`tests/manifest.sh`), so a typo or a renamed
+package is caught before you hit it.
+
+**Missing tools are pointed out, cheaply.** The installer records what's missing. Your
+shells (sh/dash, bash, fish) mention it once per boot, and re-check each entry with shell
+builtins, so a tool you installed since then isn't reported and a normal shell start
+costs no extra process.
 
 ## What's in it
 
 | | |
 |---|---|
-| `home/.profile` | Login environment (POSIX: dash, bash, SDDM/Plasma all read it): `~/.local/bin` on PATH, editor, `ENV` |
-| `home/.shrc` | Interactive dash/sh: line editing, a prompt with no forks, aliases; loads `~/.config/sh/local.sh` |
+| `home/.profile` | Login environment (POSIX; also read by display managers): `~/.local/bin` and mise shims on PATH, editor, `ENV` |
+| `home/.shrc` | Interactive sh/dash: line editing, a prompt with no forks, aliases; loads `~/.config/sh/local.sh` |
 | `home/.bashrc` | Sources `~/.shrc` and `~/.config/bash/*.sh` drop-ins |
-| fish | Prompt with 0 processes outside git repos and 1 inside (2.5× faster than before); fzf/zoxide init cached, regenerated only when the tool updates; abbreviations |
-| tmux | One file for laptop and servers: fish, else `/bin/sh`; `tmux-256color` where available; OSC 52 clipboard through ssh; host name in the status line |
-| Neovim | No plugins. `vim.loader`; built-in language servers (0.11+, enabled per installed server); over ssh, yanks reach your local clipboard (OSC 52); guarded for Neovim 0.7+ |
-| `.vimrc` | The same keys for vim-only servers; vim-tiny skips it silently |
-| git | Sensible defaults (`ff=only`, histogram diff, zdiff3, rerere); identity in untracked `config.local` |
-| ssh | Shared defaults in `~/.ssh/config.d/`, included **last** (after `Match all`), so per-host settings win. Connection reuse (`ControlMaster`, `%C`), post-quantum key exchange first, AES-GCM first (cheap with AES-NI). Your host list stays in `~/.ssh/config`, never here. |
-| mise | **Server profile only**: pinned tools for machines without root or with old packages (`./install.sh tools`). The laptop uses pacman, so nothing is installed twice. |
-| `bin/dotpush` | `dotpush host…` copies tmux/nvim/vim configs to servers in one ssh round trip, backing up anything it replaces |
-| Konsole | Ctrl+Tab / Ctrl+Shift+Tab switch tabs like a browser |
-| `root/` | pacman hooks that keep `/bin/sh` on dash across bash updates, and restore bash if dash is removed |
+| fish | A prompt with 0 processes outside git repos and 1 inside; fzf/zoxide init cached and regenerated only when the tool updates; abbreviations |
+| tmux | One file for workstation and servers: fish if installed, else `/bin/sh`; OSC 52 clipboard through ssh; host name in the status line; inside ssh the bar moves to the top, so nested tmux stays readable (inner prefix: `C-b C-b`) |
+| Neovim | No plugins. `vim.loader`; **built-in language servers** (Neovim 0.11+) for 15 languages, each enabled only if installed and started only for its file type; OSC 52 yanks over ssh; guarded for Neovim 0.7+ |
+| `.vimrc` | The same keys for vim-only machines |
+| git | Sensible defaults (`ff=only`, histogram diff, zdiff3, rerere); your identity in an untracked `config.local` |
+| ssh | Shared defaults in `~/.ssh/config.d/`, included **last** (after `Match all`) so your per-host settings win: connection reuse (`ControlMaster`), post-quantum key exchange first, AES-GCM first. Your host list stays in your own `~/.ssh/config` |
+| `bin/dotpush` | `dotpush host…`: send the tmux/Neovim/vim configs to servers in one ssh round trip, backing up anything replaced |
+| Konsole | Ctrl+Tab / Ctrl+Shift+Tab switch tabs (linked only if Konsole is installed) |
+| `bin/android-*.sh` | adb/scrcpy helpers (linked only with the `android` tool group) |
+| `root/` | Optional pacman hooks that keep `/bin/sh` on dash across bash updates (Arch; shown by `install.sh root`) |
 
-## Develop locally or on a server: same setup
+## Make it yours
 
-The editor and terminal configs are identical on the laptop and on servers, so you
-can develop in either place.
-
-- **Neovim language servers** (Neovim 0.11+, built in, no plugins): 15 servers are
-  defined in `home/.config/nvim/lsp/` (Lua, shell, Python with pyright + ruff,
-  TypeScript, Svelte, Go, Rust, C/C++, YAML, JSON, Dockerfile, Terraform, Markdown,
-  TOML).
-  - Only servers whose command is installed are enabled, and each starts only when
-    you open its file type, so nothing runs on a low-end machine until you edit.
-  - Completion pops up as you type.
-  - Built-in keys: `K` hover, `grn` rename, `gra` code action, `grr` references,
-    `[d`/`]d` diagnostics; `<Space>F` formats.
-  - On Neovim older than 0.11 the block is skipped.
-- `./install.sh lsp [name…]` shows which servers are available on this machine and
-  prints how to install the rest: pacman (+ AUR) on Arch; npm / go / rustup / pipx
-  elsewhere, usually without root.
-- **Nested tmux:** a tmux started inside an ssh session puts its status bar on top in
-  a different shade, so laptop tmux → ssh → server tmux stays readable. Send keys to
-  the inner one by pressing the prefix twice (`C-b C-b`).
-
-## Profiles
-
-- **laptop** (the default when a desktop session is running): everything.
-- **server**: fish, tmux, nvim, vim, git, ssh, the mise config. The server's own `.profile` and
-  `.bashrc` are left alone. Or skip cloning entirely and run `dotpush server` from
-  the laptop.
-
-## Local, never committed
+- **Fork it, then edit `tools.conf`** to add or remove tools: one line each, with `-`
+  where a system has no package. `tests/manifest.sh` checks your names.
+- **Machine-specific settings go in untracked local files**, which the tracked ones load:
 
 | File | For |
 |---|---|
-| `~/.config/sh/local.sh` | Machine-specific aliases (e.g. per-account `claude-*`) |
-| `~/.config/fish/conf.d/local.fish`, `~/.config/nvim/local.lua` | Machine-specific fish and Neovim additions |
-| `~/.config/git/config.local` | `[user] name/email` (use your noreply address) |
+| `~/.config/sh/local.sh` | Aliases and functions for sh/dash/bash |
+| `~/.config/fish/conf.d/local.fish` | fish additions |
+| `~/.config/nvim/local.lua` | Neovim additions |
+| `~/.config/git/config.local` | `[user] name/email` |
 | `~/.ssh/config` | Your hosts |
-| `~/.config/dotfiles/private-terms` | Words the privacy check must never let into this repo |
 
-## How it installs
+- **Profiles:** `laptop` links everything. `server` links only the editor/terminal set
+  and leaves the server's own `.profile`/`.bashrc` alone.
+- **Optional extra:** [csw](https://github.com/ric-dg/csw) (one `claude` across several
+  Claude Code accounts). `setup` offers it, and when it's installed the installer
+  generates its fast `claude` function for fish and sh.
 
-Files are **symlinked** to the repo, so `git diff` shows every edit you make in `$HOME`.
-Anything already there is moved to `~/.local/state/dotfiles/backup/<time>/`. Re-running
-changes nothing, and `--dry-run` shows the plan first. The installer is POSIX `sh` and
-never runs `sudo`.
+## Lightweight by design
 
-Optional companion: [csw](https://github.com/ric-dg/csw) (one `claude` across several
-accounts). When it's installed, the installer generates its fast `claude` function for
-fish and sh.
+- No plugin managers, and no shell frameworks or prompt engines.
+- Tool init scripts are cached.
+- Language servers start only for their file type.
+- The missing-tools notice uses builtins only.
+- mise uses shims rather than a prompt hook.
+- The installer is POSIX `sh`, needs no root itself, and never runs `sudo` unless you
+  confirm.
 
 ## Development
 
 ```sh
-tests/run.sh        # installs into throwaway HOMEs under dash and bash, loads every config in its program
-tests/privacy.sh    # no private IPs, keys, tokens, emails or private terms (also the pre-commit hook)
+tests/run.sh        # throwaway HOMEs under dash and bash: linking, tools planning, setup, notices, configs load
+tests/privacy.sh    # no private IPs, keys, tokens or emails (also the pre-commit hook)
+tests/manifest.sh   # every package name in tools.conf exists (network)
 git config core.hooksPath .githooks
 ```
+
+Issues and pull requests are welcome. Please keep changes POSIX, fork-free on hot paths,
+and covered by `tests/run.sh`.
 
 ## License
 

@@ -1,4 +1,4 @@
--- Neovim, no plugins (starts in milliseconds). One file for laptop and servers:
+-- Neovim, no plugins (starts in milliseconds). One file for workstations and servers:
 -- guarded so Neovim 0.7+ doesn't error. dotpush sends it to servers.
 if vim.loader then vim.loader.enable() end   -- 0.9+: cache compiled Lua, faster start
 
@@ -63,7 +63,7 @@ vim.api.nvim_create_autocmd("TextYankPost", {
 -- Language servers, built in (Neovim 0.11+, no plugins). Each server is defined in
 -- lsp/<name>.lua; only those whose command is installed are enabled, and a server
 -- starts only when a file of its type is opened. Same file on laptop and servers:
--- install the servers you need (`~/src/dotfiles/install.sh lsp` prints how).
+-- install the servers you need (the dotfiles `install.sh lsp` lists them).
 -- Built-in keys: K hover, grn rename, gra code action, grr references, gri implementation,
 -- gO symbols, [d / ]d diagnostics, <C-s> signature help (insert mode).
 if vim.fn.has("nvim-0.11") == 1 then
