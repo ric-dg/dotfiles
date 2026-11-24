@@ -6,12 +6,17 @@
   (only if they exist), sets the editor and `ENV=~/.shrc`. The Android SDK environment is
   set only if `/opt/android-sdk` exists. Last, it loads `~/.config/sh/profile.local`
   (yours, untracked: this machine's extra PATH entries and variables).
-- **macOS:** zsh stays the login shell (Apple's default) and behaves like the sh/dash
-  login above: `~/.zshenv` loads `~/.profile` (every zsh, so `ssh mac <command>` finds
-  your tools too), `~/.zprofile` restores its PATH order after macOS's `path_helper`, and
-  `~/.zshrc` loads `~/.shrc` with emacs keys. fish inside tmux is the daily shell, as
-  elsewhere. `install.sh` also compiles a `tmux-256color` terminfo into `~/.terminfo`
-  (macOS has none).
+- **zsh** (linked on macOS, where it is the login shell, and wherever zsh is installed):
+  - `~/.zshenv` loads `~/.profile`, for every zsh, so `ssh mac <command>` finds your
+    tools too; `~/.zprofile` restores its PATH order after macOS's `path_helper`;
+  - `~/.zshrc` loads `~/.shrc`, then makes zsh a full alternative to fish: completion
+    (Homebrew's too; the full check once a day, a cached dump otherwise), shared history,
+    the cached fzf and zoxide init scripts, fish's abbreviations as aliases, emacs keys,
+    and the fish prompt's look (no process outside a git repo, one inside);
+  - `~/.config/zsh/local.zsh` is yours.
+- **macOS:** zsh stays the login shell (Apple's default); fish runs inside tmux as
+  elsewhere, and `zsh` is there when you prefer it. `install.sh` also compiles a
+  `tmux-256color` terminfo into `~/.terminfo` (macOS has none).
 - **`~/.shrc`** (interactive sh/dash, and bash through `.bashrc`):
   - emacs-style line editing;
   - a prompt that starts no processes;

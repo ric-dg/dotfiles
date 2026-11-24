@@ -23,8 +23,9 @@
 #   laptop  everything: shells (.profile/.shrc/.bashrc), fish, tmux, nvim, vim, git, ssh,
 #           dotpush (+ its server file set); Konsole tab keys if Konsole is installed;
 #           the Android helper scripts if the android tool group is selected.
-#           macOS: also .zshenv/.zprofile/.zshrc (zsh, the login shell there, reads
-#           .profile and .shrc through them) and a tmux-256color terminfo in ~/.terminfo.
+#           zsh (macOS, or wherever zsh is installed): .zshenv/.zprofile/.zshrc (zsh reads
+#           .profile and .shrc through them; .zshrc = a full shell like fish).
+#           macOS: also a tmux-256color terminfo in ~/.terminfo.
 #   server  the editor/terminal set: fish, tmux, nvim, vim, git, ssh. The server's own
 #           .profile/.bashrc are left alone.
 #   Default: laptop on macOS or when a desktop session is running, otherwise server.
@@ -91,16 +92,17 @@ files_optional() {
 	esac
 	return 0
 }
-# macOS: zsh is the login shell; these make it read ~/.profile and ~/.shrc like sh/dash
-files_os() {
-	[ "$OS" = Darwin ] || return 0
+# zsh (the login shell on macOS, or installed by choice): it reads ~/.profile and ~/.shrc
+# like sh/dash, and ~/.zshrc makes it a full interactive shell, the alternative to fish
+files_zsh() {
+	[ "$OS" = Darwin ] || has zsh || return 0
 	cat <<'EOF'
 home/.zshenv                                  .zshenv
 home/.zprofile                                .zprofile
 home/.zshrc                                   .zshrc
 EOF
 }
-files() { files_common; [ "$PROFILE" = server ] && return 0; files_laptop; files_os; files_optional; }
+files() { files_common; [ "$PROFILE" = server ] && return 0; files_laptop; files_zsh; files_optional; }
 
 # link SOURCE TARGET: make $HOME/TARGET a symlink to $REPO/SOURCE, backing up what's there
 link() {
