@@ -1,8 +1,15 @@
-# fish: the interactive shell (inside tmux; the login shell is POSIX sh/dash, see ~/.profile).
+# fish: the interactive shell (inside tmux; the login shell is POSIX sh/dash, or zsh on macOS, see ~/.profile).
 # Machine-specific additions go in ~/.config/fish/conf.d/local.fish (untracked).
 set -gx EDITOR nvim
 set -gx VISUAL nvim
 set -gx MANPAGER "nvim +Man!"
+# Homebrew (macOS, Linux), in case this session did not come through ~/.profile; builtins only
+for b in /opt/homebrew /home/linuxbrew/.linuxbrew
+    if test -x $b/bin/brew
+        contains -- $b/bin $PATH; or set -gx PATH $b/bin $b/sbin $PATH
+        break
+    end
+end
 contains -- $HOME/.local/bin $PATH; or set -gx PATH $HOME/.local/bin $PATH   # builtins only, no fork
 
 # Android SDK command-line tools (system-wide; the scripts find build-tools/aapt2 themselves)

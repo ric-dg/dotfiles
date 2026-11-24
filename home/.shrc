@@ -4,7 +4,8 @@ case $- in *i*) ;; *) return 0 2>/dev/null || exit 0 ;; esac
 
 # user@host:dir$  (read is a builtin: no process; dash re-expands $PWD per prompt; before set -o emacs,
 # which breaks read-from-file in dash)
-[ -n "${HOSTNAME:-}" ] || read -r HOSTNAME </etc/hostname
+[ -n "${HOSTNAME:-}" ] || [ ! -r /etc/hostname ] || read -r HOSTNAME </etc/hostname
+[ -n "${HOSTNAME:-}" ] || HOSTNAME=${HOST:-$(uname -n)}   # macOS has no /etc/hostname (zsh sets $HOST)
 PS1='$USER@$HOSTNAME:$PWD\$ '
 
 set -o emacs                       # arrow keys, history, Ctrl-A/E/L (libedit)

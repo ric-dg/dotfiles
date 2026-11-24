@@ -23,20 +23,24 @@
 #   laptop  everything: shells (.profile/.shrc/.bashrc), fish, tmux, nvim, vim, git, ssh,
 #           dotpush (+ its server file set); Konsole tab keys if Konsole is installed;
 #           the Android helper scripts if the android tool group is selected.
+#           macOS: also .zshenv/.zprofile/.zshrc (zsh, the login shell there, reads
+#           .profile and .shrc through them) and a tmux-256color terminfo in ~/.terminfo.
 #   server  the editor/terminal set: fish, tmux, nvim, vim, git, ssh. The server's own
 #           .profile/.bashrc are left alone.
-#   Default: laptop when a desktop session is running, otherwise server.
+#   Default: laptop on macOS or when a desktop session is running, otherwise server.
 #
 # Files are symlinked, so the repo stays the source of truth (`git diff` shows any edit).
 # Anything already there is moved to ~/.local/state/dotfiles/backup/<time>/ first.
 # Missing tools are listed in ~/.local/state/dotfiles/missing; your shells mention them
 # once per boot (builtins only, no extra processes).
 # Machine-specific things live in untracked local files the tracked ones load:
-#   ~/.config/sh/local.sh, ~/.config/fish/conf.d/local.fish, ~/.config/nvim/local.lua,
+#   ~/.config/sh/profile.local (login environment), ~/.config/sh/local.sh,
+#   ~/.config/fish/conf.d/local.fish, ~/.config/nvim/local.lua,
 #   ~/.config/git/config.local, and your host list in ~/.ssh/config.
 set -eu
 
 REPO=$(cd "$(dirname "$0")" && pwd)
+OS=${DOTFILES_OS:-$(uname -s)} # Darwin = macOS (DOTFILES_OS: for the tests)
 STATE=${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles
 STAMP=$(date +%Y%m%d-%H%M%S)
 BACKUP=$STATE/backup/$STAMP
@@ -87,7 +91,16 @@ files_optional() {
 	esac
 	return 0
 }
-files() { files_common; [ "$PROFILE" = server ] && return 0; files_laptop; files_optional; }
+# macOS: zsh is the login shell; these make it read ~/.profile and ~/.shrc like sh/dash
+files_os() {
+	[ "$OS" = Darwin ] || return 0
+	cat <<'EOF'
+home/.zshenv                                  .zshenv
+home/.zprofile                                .zprofile
+home/.zshrc                                   .zshrc
+EOF
+}
+files() { files_common; [ "$PROFILE" = server ] && return 0; files_laptop; files_os; files_optional; }
 
 # link SOURCE TARGET: make $HOME/TARGET a symlink to $REPO/SOURCE, backing up what's there
 link() {
@@ -121,6 +134,23 @@ ssh_include() {
 	CHANGED=1
 }
 
+# macOS ships no tmux-256color terminfo: compile Homebrew ncurses' entry for the system's
+# ncurses into ~/.terminfo (tmux.conf falls back to screen-256color without it)
+terminfo_macos() {
+	local p src='' tmp
+	infocmp tmux-256color >/dev/null 2>&1 && return 0
+	for p in /opt/homebrew /usr/local; do [ -x "$p/opt/ncurses/bin/infocmp" ] && { src=$p/opt/ncurses/bin/infocmp; break; }; done
+	if [ -z "$src" ]; then say "  note    tmux-256color terminfo: brew install ncurses, then run this again"; return 0; fi
+	say "  compile ~/.terminfo: tmux-256color"
+	CHANGED=1
+	[ "$DRY" = 0 ] || return 0
+	tmp=$(mktemp)
+	# the system tic is older: it rejects colour-pair counts above 32767
+	"$src" -x tmux-256color | sed 's/pairs#0x10000/pairs#32767/; s/pairs#65536/pairs#32767/' >"$tmp" &&
+		tic -x -o "$HOME/.terminfo" "$tmp"
+	rm -f "$tmp"
+}
+
 # generated files: csw's fast `claude` function, when csw is installed
 generated() {
 	local out
@@ -148,10 +178,11 @@ cmd_install() {
 $(files)
 EOF
 	ssh_include
+	[ "$PROFILE" = server ] || [ "$OS" != Darwin ] || terminfo_macos
 	[ "$PROFILE" = server ] || generated
 	if [ "$CHANGED" = 0 ]; then say "dotfiles: already up to date"; else say "dotfiles: done"; fi
 	tools_summary
-	[ "$PROFILE" = server ] || say "system steps (root): ./install.sh root"
+	[ "$PROFILE" = server ] || [ "$OS" = Darwin ] || say "system steps (root): ./install.sh root"
 }
 
 cmd_check() {
@@ -208,6 +239,13 @@ EOF
 }
 
 cmd_root() {
+	if [ "$OS" = Darwin ]; then
+		cat <<'EOF'
+# macOS: no system steps. The login shell stays zsh (Apple's default); it reads ~/.profile
+# and ~/.shrc through ~/.zshenv and ~/.zshrc, and fish runs inside tmux.
+EOF
+		return 0
+	fi
 	cat <<EOF
 # System steps for the laptop profile (Arch). Review, then run them yourself.
 # dash as /bin/sh, kept there by pacman hooks (bash updates reset /usr/bin/sh):
@@ -503,7 +541,7 @@ main() {
 		shift
 	done
 	if [ -z "$PROFILE" ]; then
-		if [ -n "${XDG_CURRENT_DESKTOP-}${WAYLAND_DISPLAY-}${DISPLAY-}" ]; then PROFILE=laptop; else PROFILE=server; fi
+		if [ "$OS" = Darwin ] || [ -n "${XDG_CURRENT_DESKTOP-}${WAYLAND_DISPLAY-}${DISPLAY-}" ]; then PROFILE=laptop; else PROFILE=server; fi
 	fi
 	case $PROFILE in laptop | server) ;; *) err "profile must be laptop or server" ;; esac
 	case $cmd in
