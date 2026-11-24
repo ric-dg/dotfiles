@@ -4,10 +4,11 @@
 # On macOS, zsh (the login shell there) reads it through ~/.zshenv.
 
 # Homebrew (macOS /opt/homebrew, Linux /home/linuxbrew) ahead of the system directories,
-# which macOS's path_helper puts first; a builtin test, no `brew shellenv` process
+# which macOS's path_helper puts first; a builtin test, no `brew shellenv` process. Already
+# ahead of /usr/bin (a nested login shell) = left where it is, behind ~/.local/bin.
 for _b in /opt/homebrew /home/linuxbrew/.linuxbrew; do
 	[ -x "$_b/bin/brew" ] || continue
-	case ":$PATH:" in ":$_b/bin:"*) ;; *) PATH=$_b/bin:$_b/sbin:$PATH ;; esac
+	case ":$PATH:" in *":$_b/bin:"*":/usr/bin:"*) ;; *) PATH=$_b/bin:$_b/sbin:$PATH ;; esac
 	break
 done
 unset _b

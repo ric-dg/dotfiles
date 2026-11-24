@@ -199,7 +199,10 @@ suite() { # suite SHELL
 		out=$(env -i HOME="$H" PATH=/usr/bin:/bin zsh -c 'printf %s "$PATH"; printf " %s" "$EDITOR"')
 		check "zsh (non-login, e.g. ssh host cmd) gets the login environment" has "$out" ' nvim$'
 		out=$(env -i HOME="$H" PATH=/usr/bin:/bin zsh -ic 'printf %s "$PS1"' 2>&1)
-		check "interactive zsh loads .shrc without errors" sh -c '! printf "%s" "$1" | grep -qi "no such file\|error"' _ "$out"
+		check "interactive zsh loads .shrc without errors" sh -c '! printf "%s" "$1" | grep -qi "no such file\|error\|can.t change"' _ "$out"
+		out=$(env -i HOME="$H" PATH=/usr/bin:/bin zsh -lic 'printf %s "$PATH"' 2>/dev/null)
+		check "zsh login: ~/.local/bin stays first in a nested login shell" sh -c 'case "$1" in "$2"/.local/bin:*) ;; *) exit 1 ;; esac' _ \
+			"$(env -i HOME="$H" PATH="$out" zsh -lic 'printf %s "$PATH"' 2>/dev/null)" "$H"
 	fi
 	rm -rf "$H"
 }
