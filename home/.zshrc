@@ -14,21 +14,24 @@ _c=${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles
 [[ -d $_c ]] || mkdir -p $_c
 
 # completion (+ Homebrew's): the full check (new completions, insecure directories) once a
-# day, otherwise the cached dump as is
+# day, otherwise the cached dump as is; the dump is compiled (zcompile) so it loads faster.
+# The first Homebrew found wins: on macOS /home is an automount, looking there costs ~20 ms.
 for _b in /opt/homebrew /home/linuxbrew/.linuxbrew; do
-	[[ -d $_b/share/zsh/site-functions ]] && fpath=($_b/share/zsh/site-functions $fpath)
+	[[ -d $_b/share/zsh/site-functions ]] && { fpath=($_b/share/zsh/site-functions $fpath); break; }
 done
 autoload -Uz compinit
 _f=($_c/zcompdump(N.mh-24))
 if (( $#_f )); then compinit -C -d $_c/zcompdump; else compinit -d $_c/zcompdump; fi
+[[ $_c/zcompdump.zwc -nt $_c/zcompdump ]] || zcompile $_c/zcompdump
 zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'   # case-insensitive
 zstyle ':completion:*' menu select
 
-# tool init scripts cached; regenerated only when the tool is updated (as in config.fish)
+# tool init scripts cached and compiled; regenerated only when the tool is updated (as in
+# config.fish). `source` picks the compiled .zwc when it is newer than the script.
 _dotfiles_init() {   # <cache name> <command...>
 	local f=$_c/$1.zsh bin=${commands[$2]}
 	[[ -n $bin ]] || return 0
-	[[ -s $f && ! $bin -nt $f ]] || "${@:2}" >|$f
+	[[ -s $f && ! $bin -nt $f ]] || { "${@:2}" >|$f && zcompile $f; }
 	source $f
 }
 _dotfiles_init fzf fzf --zsh             # Ctrl-R history, Ctrl-T files, Alt-C dirs
