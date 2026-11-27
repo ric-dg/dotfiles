@@ -48,6 +48,11 @@ Re-run `setup` any time; it only changes what differs.
 | a user without any of them | mise, per user |
 | on macOS | Homebrew (no root needed) |
 
+On macOS the profile is `laptop` by default and there are no system steps: zsh stays the
+login shell and reads the same `~/.profile` and `~/.shrc` through three small zsh files
+([configs.md](configs.md#shells)); `brew install ncurses` first if you want tmux's
+`tmux-256color` terminal type.
+
 Force a method with `--system` or `--user`. Supported package managers: pacman, apt,
 dnf, apk, Homebrew. On other systems everything goes through mise.
 

@@ -35,6 +35,8 @@ suite() { # suite SHELL
 	check "laptop: android scripts NOT linked unless the android group is selected" [ ! -e "$H/.local/bin/android-connect.sh" ]
 	check "laptop: no mise config is linked (mise keeps its own, untracked)" [ ! -e "$H/.config/mise/config.toml" ]
 	check "laptop: fish notice linked" linked .config/fish/conf.d/dotfiles.fish home/.config/fish/conf.d/dotfiles.fish
+	if command -v zsh >/dev/null; then check "laptop with zsh installed: .zshrc linked" linked .zshrc home/.zshrc
+	else check "laptop without zsh (not macOS): no zsh files" [ ! -e "$H/.zshenv" ]; fi
 	check "install records where the repo is" [ "$(cat "$H/.local/state/dotfiles/repo")" = "$REPO" ]
 	check "laptop: dotpush server set uses the same tmux file" linked .config/dotpush/files/.tmux.conf home/.config/tmux/tmux.conf
 	check "existing file backed up" sh -c 'grep -q "my old vimrc" "$1"/.local/state/dotfiles/backup/*/.vimrc' _ "$H"
@@ -182,6 +184,32 @@ suite() { # suite SHELL
 	check "server: no dotpush" [ ! -e "$H/.local/bin/dotpush" ]
 	check "server: no mise config linked" [ ! -e "$H/.config/mise/config.toml" ]
 	check "server: check passes" i check
+	rm -rf "$H"
+
+	# macOS (DOTFILES_OS fakes it): laptop by default, zsh reads the shared sh files
+	H=$(mktemp -d)
+	export HOME="$H" XDG_STATE_HOME="$H/.local/state"
+	DOTFILES_OS=Darwin i >/dev/null
+	check "macOS: laptop is the default" linked .profile home/.profile
+	check "macOS: zsh files linked" linked .zshenv home/.zshenv && check "macOS: .zprofile" linked .zprofile home/.zprofile &&
+		check "macOS: .zshrc" linked .zshrc home/.zshrc
+	check "macOS: check passes" env DOTFILES_OS=Darwin $SH "$REPO/install.sh" check
+	check "macOS: root has no system steps" sh -c '"$@" | grep -q "no system steps"' _ env DOTFILES_OS=Darwin $SH "$REPO/install.sh" root
+	if command -v zsh >/dev/null; then
+		check "zsh files parse" zsh -n "$H/.zshenv" "$H/.zprofile" "$H/.zshrc"
+		out=$(env -i HOME="$H" PATH=/usr/bin:/bin zsh -c 'printf %s "$PATH"; printf " %s" "$EDITOR"')
+		check "zsh (non-login, e.g. ssh host cmd) gets the login environment" has "$out" ' nvim$'
+		out=$(env -i HOME="$H" PATH=/usr/bin:/bin zsh -ic 'printf %s "$PS1"' 2>&1)
+		check "interactive zsh loads .shrc without errors" sh -c '! printf "%s" "$1" | grep -qi "no such file\|error\|can.t change"' _ "$out"
+		mkdir -p "$H/repo" && git -C "$H/repo" init -q -b main && : >"$H/repo/new"
+		out=$(cd "$H/repo" && env -i HOME="$H" PATH=/usr/bin:/bin zsh -ic '_dotfiles_prompt; print -r -- $PROMPT' 2>&1)
+		check "zsh prompt shows the git branch and an untracked file" has "$out" '(git%F{red}≠%B%F{blue}main'
+		out=$(cd "$H" && env -i HOME="$H" PATH=/usr/bin:/bin zsh -ic '_dotfiles_prompt; print -r -- $PROMPT' 2>&1)
+		check "zsh prompt outside a repo has no git part" sh -c '! printf "%s" "$1" | grep -q "(git"' _ "$out"
+		out=$(env -i HOME="$H" PATH=/usr/bin:/bin zsh -lic 'printf %s "$PATH"' 2>/dev/null)
+		check "zsh login: ~/.local/bin stays first in a nested login shell" sh -c 'case "$1" in "$2"/.local/bin:*) ;; *) exit 1 ;; esac' _ \
+			"$(env -i HOME="$H" PATH="$out" zsh -lic 'printf %s "$PATH"' 2>/dev/null)" "$H"
+	fi
 	rm -rf "$H"
 }
 

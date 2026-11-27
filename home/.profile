@@ -1,7 +1,17 @@
 # ~/.profile: login environment (POSIX sh). Read by the dash login shell, by SDDM
 # when starting Plasma (so every app inherits it), and by bash via ~/.bash_profile.
 # Keep it to environment variables only: it runs once per login, not per terminal.
+# On macOS, zsh (the login shell there) reads it through ~/.zshenv.
 
+# Homebrew (macOS /opt/homebrew, Linux /home/linuxbrew) ahead of the system directories,
+# which macOS's path_helper puts first; a builtin test, no `brew shellenv` process. Already
+# ahead of /usr/bin (a nested login shell) = left where it is, behind ~/.local/bin.
+for _b in /opt/homebrew /home/linuxbrew/.linuxbrew; do
+	[ -x "$_b/bin/brew" ] || continue
+	case ":$PATH:" in *":$_b/bin:"*":/usr/bin:"*) ;; *) PATH=$_b/bin:$_b/sbin:$PATH ;; esac
+	break
+done
+unset _b
 case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH=$HOME/.local/bin:$PATH ;; esac
 # per-user tools installed by mise (install.sh tools --user / no root): shims, no hook
 [ ! -d "$HOME/.local/share/mise/shims" ] || case ":$PATH:" in *":$HOME/.local/share/mise/shims:"*) ;; *) PATH=$HOME/.local/share/mise/shims:$PATH ;; esac
@@ -17,6 +27,9 @@ if [ -d /opt/android-sdk ]; then
 	case ":$PATH:" in *":$ANDROID_HOME/cmdline-tools/latest/bin:"*) ;; *) PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH ;; esac
 	export PATH
 fi
+
+# machine-specific login environment (untracked, sh syntax), e.g. extra PATH entries
+[ ! -r "$HOME/.config/sh/profile.local" ] || . "$HOME/.config/sh/profile.local"
 
 # Interactive sh/dash reads this file at start-up (prompt, line editing, aliases).
 export ENV="$HOME/.shrc"
