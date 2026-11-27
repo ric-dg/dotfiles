@@ -21,7 +21,9 @@ for _b in /opt/homebrew /home/linuxbrew/.linuxbrew; do
 done
 autoload -Uz compinit
 _f=($_c/zcompdump(N.mh-24))
-if (( $#_f )); then compinit -C -d $_c/zcompdump; else compinit -d $_c/zcompdump; fi
+# compinit rewrites the dump only when something changed: touch it, or every shell after the first day would run the
+# full check (~10 ms) instead of once a day
+if (( $#_f )); then compinit -C -d $_c/zcompdump; else compinit -d $_c/zcompdump; touch $_c/zcompdump; fi
 [[ $_c/zcompdump.zwc -nt $_c/zcompdump ]] || zcompile $_c/zcompdump
 zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'   # case-insensitive
 zstyle ':completion:*' menu select
