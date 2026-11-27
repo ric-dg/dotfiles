@@ -16,8 +16,9 @@ _c=${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles
 # completion (+ Homebrew's): the full check (new completions, insecure directories) once a
 # day, otherwise the cached dump as is; the dump is compiled (zcompile) so it loads faster.
 # The first Homebrew found wins: on macOS /home is an automount, looking there costs ~20 ms.
+_hb=   # the Homebrew prefix, reused for the plugins below
 for _b in /opt/homebrew /home/linuxbrew/.linuxbrew; do
-	[[ -d $_b/share/zsh/site-functions ]] && { fpath=($_b/share/zsh/site-functions $fpath); break; }
+	[[ -d $_b/share/zsh/site-functions ]] && { _hb=$_b; fpath=($_b/share/zsh/site-functions $fpath); break; }
 done
 autoload -Uz compinit
 _f=($_c/zcompdump(N.mh-24))
@@ -43,6 +44,27 @@ unset _b _c _f
 
 # fish's abbreviations (ls, ll, v, g come from ~/.shrc)
 alias la='eza -la --git --group-directories-first' cat='bat --paging=never'
+
+# fish-like typing. Up/Down search the history for what is already typed (built in). When the packages are
+# installed: grey suggestions from history as you type (zsh-autosuggestions; Right arrow or End accepts) and command
+# colouring (zsh-syntax-highlighting, loaded last, at the end of this file, as it requires). Looked for in Homebrew,
+# /usr/share/zsh/plugins (Arch, Alpine) and /usr/share (Debian, Fedora) with plain file tests.
+autoload -Uz up-line-or-beginning-search down-line-or-beginning-search
+zle -N up-line-or-beginning-search
+zle -N down-line-or-beginning-search
+bindkey '^[[A' up-line-or-beginning-search
+bindkey '^[OA' up-line-or-beginning-search
+bindkey '^[[B' down-line-or-beginning-search
+bindkey '^[OB' down-line-or-beginning-search
+_zp=(${_hb:+$_hb/share} /usr/share/zsh/plugins /usr/share)
+for _d in $_zp; do
+	[[ -r $_d/zsh-autosuggestions/zsh-autosuggestions.zsh ]] || continue
+	ZSH_AUTOSUGGEST_STRATEGY=(history)      # history only: the fast strategy, like fish's
+	ZSH_AUTOSUGGEST_MANUAL_REBIND=1         # no re-wrapping of widgets at every prompt
+	ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=40      # no suggestions for long pasted lines
+	source $_d/zsh-autosuggestions/zsh-autosuggestions.zsh
+	break
+done
 
 # prompt: the fish prompt's look. The repo is found with builtins (no process outside a
 # repo); one `git status` inside gives branch + file states.
@@ -75,4 +97,12 @@ _dotfiles_prompt() {
 precmd_functions+=(_dotfiles_prompt)
 
 [[ -r $HOME/.config/zsh/local.zsh ]] && source $HOME/.config/zsh/local.zsh
+
+# command colouring last: it wraps every widget defined before it
+for _d in $_zp; do
+	[[ -r $_d/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]] || continue
+	source $_d/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+	break
+done
+unset _d _zp _hb
 true
