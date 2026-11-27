@@ -33,3 +33,10 @@ fi
 
 # Interactive sh/dash reads this file at start-up (prompt, line editing, aliases).
 export ENV="$HOME/.shrc"
+
+# Opt-in, per machine (profile.local: DOTFILES_SSH_TMUX=<session>): an interactive login over SSH goes straight into
+# that tmux session (fish inside, tmux.conf), replacing this shell. Not for `ssh host <command>`, scp/sftp/rsync (no
+# login shell), nor inside tmux; `ssh -t host sh` gives a plain shell. zsh does the same in ~/.zprofile.
+if [ -n "${DOTFILES_SSH_TMUX-}" ] && [ -n "${SSH_TTY-}" ] && [ -z "${TMUX-}" ] && [ -z "${ZSH_VERSION-}" ]; then
+	case $- in *i*) ! command -v tmux >/dev/null 2>&1 || exec tmux new-session -A -s "$DOTFILES_SSH_TMUX" ;; esac
+fi

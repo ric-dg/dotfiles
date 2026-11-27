@@ -6,3 +6,8 @@ if [[ -n ${_dotfiles_path-} ]]; then
 	path=(${(s.:.)_dotfiles_path} $path)
 fi
 unset _dotfiles_path
+
+# Opt-in SSH login -> tmux (DOTFILES_SSH_TMUX, see ~/.profile): here, before ~/.zshrc, so none of the interactive
+# set-up runs for a shell that is replaced. Login shells only: `ssh -t host zsh` gives a plain zsh.
+[[ -n ${DOTFILES_SSH_TMUX-} && -n ${SSH_TTY-} && -z ${TMUX-} && -o interactive ]] && (( $+commands[tmux] )) &&
+	exec tmux new-session -A -s $DOTFILES_SSH_TMUX

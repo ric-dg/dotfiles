@@ -63,6 +63,16 @@ suite() { # suite SHELL
 	if command -v tmux >/dev/null; then check "tmux config loads" tmux -L dotfiles-test -f "$H/.config/tmux/tmux.conf" start \; kill-server; fi
 	if command -v nvim >/dev/null; then check "nvim config loads" nvim --clean --headless -u "$H/.config/nvim/init.lua" +q; fi
 	check "git config parses" git config -f "$H/.config/git/config" --list
+	# opt-in SSH login -> tmux (a stand-in tmux prints its arguments; "shell" = no switch)
+	mkdir -p "$H/faketmux" "$H/.config/sh"; printf '#!/bin/sh\necho "tmux $*"\n' >"$H/faketmux/tmux"; chmod +x "$H/faketmux/tmux"
+	sshlogin() { env -i HOME="$H" PATH="$H/faketmux:/usr/bin:/bin" "$@" 2>/dev/null; }
+	check "ssh login without the opt-in: plain shell" has "$(sshlogin SSH_TTY=/dev/pts/9 dash -lic 'echo shell')" '^shell'
+	echo 'DOTFILES_SSH_TMUX=main' >"$H/.config/sh/profile.local"
+	check "ssh login with the opt-in: tmux session" has "$(sshlogin SSH_TTY=/dev/pts/9 dash -lic 'echo shell')" '^tmux new-session -A -s main$'
+	check "opt-in, local login (no ssh): plain shell" has "$(sshlogin dash -lic 'echo shell')" '^shell'
+	check "opt-in, ssh host <command>: plain shell" has "$(sshlogin SSH_TTY=/dev/pts/9 dash -lc 'echo shell')" '^shell'
+	check "opt-in, already in tmux: plain shell" has "$(sshlogin SSH_TTY=/dev/pts/9 TMUX=x dash -lic 'echo shell')" '^shell'
+	rm "$H/.config/sh/profile.local"
 	# dev layer: native LSP enables only installed servers; install hints; nested tmux
 	check "nvim lsp dir linked" linked .config/nvim/lsp home/.config/nvim/lsp
 	if command -v nvim >/dev/null && nvim --headless -c 'if has("nvim-0.11") | qa | else | cq | endif' 2>/dev/null; then
@@ -218,6 +228,13 @@ suite() { # suite SHELL
 		out=$(env -i HOME="$H" PATH=/usr/bin:/bin zsh -lic 'printf %s "$PATH"' 2>/dev/null)
 		check "zsh login: ~/.local/bin stays first in a nested login shell" sh -c 'case "$1" in "$2"/.local/bin:*) ;; *) exit 1 ;; esac' _ \
 			"$(env -i HOME="$H" PATH="$out" zsh -lic 'printf %s "$PATH"' 2>/dev/null)" "$H"
+		# opt-in SSH login -> tmux, in ~/.zprofile (before .zshrc); only login shells
+		mkdir -p "$H/faketmux" "$H/.config/sh"; printf '#!/bin/sh\necho "tmux $*"\n' >"$H/faketmux/tmux"; chmod +x "$H/faketmux/tmux"
+		echo 'DOTFILES_SSH_TMUX=main' >"$H/.config/sh/profile.local"
+		zl() { env -i HOME="$H" PATH="$H/faketmux:/usr/bin:/bin" SSH_TTY=/dev/pts/9 zsh "$@" 2>/dev/null; }
+		check "zsh: ssh login with the opt-in: tmux session" has "$(zl -lic 'echo shell')" '^tmux new-session -A -s main$'
+		check "zsh: ssh -t host zsh (not a login): plain zsh" has "$(zl -ic 'echo shell')" '^shell'
+		check "zsh: ssh host <command>: plain zsh" has "$(zl -c 'echo shell')" '^shell'
 	fi
 	rm -rf "$H"
 }
