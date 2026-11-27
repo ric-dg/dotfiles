@@ -197,6 +197,11 @@ suite() { # suite SHELL
 	check "macOS: root has no system steps" sh -c '"$@" | grep -q "no system steps"' _ env DOTFILES_OS=Darwin $SH "$REPO/install.sh" root
 	if command -v zsh >/dev/null; then
 		check "zsh files parse" zsh -n "$H/.zshenv" "$H/.zprofile" "$H/.zshrc"
+		# the daily full completion check must not repeat: an old dump gets a fresh date after the check
+		mkdir -p "$H/.cache/dotfiles"; env -i HOME="$H" PATH=/usr/bin:/bin zsh -ic exit >/dev/null 2>&1
+		touch -d '2 days ago' "$H/.cache/dotfiles/zcompdump"
+		env -i HOME="$H" PATH=/usr/bin:/bin zsh -ic exit >/dev/null 2>&1
+		check "zsh: the completion dump is refreshed after the daily check" sh -c '[ -n "$(find "$1" -mmin -5)" ]' _ "$H/.cache/dotfiles/zcompdump"
 		out=$(env -i HOME="$H" PATH=/usr/bin:/bin zsh -c 'printf %s "$PATH"; printf " %s" "$EDITOR"')
 		check "zsh (non-login, e.g. ssh host cmd) gets the login environment" has "$out" ' nvim$'
 		out=$(env -i HOME="$H" PATH=/usr/bin:/bin zsh -ic 'printf %s "$PS1"' 2>&1)
