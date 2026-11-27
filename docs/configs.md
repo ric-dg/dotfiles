@@ -5,10 +5,17 @@
   installed, ahead of the system directories), `~/.local/bin` and mise's shims on PATH
   (only if they exist), sets the editor and `ENV=~/.shrc`. The Android SDK environment is
   set only if `/opt/android-sdk` exists. Last, it loads `~/.config/sh/profile.local`
-  (yours, untracked: this machine's extra PATH entries and variables).
+  (yours, untracked: this machine's extra PATH entries and variables). Opt-in there:
+  `DOTFILES_SSH_TMUX=main` sends an interactive SSH login straight into that tmux session
+  (fish inside), so `ssh host` lands in fish with nothing left behind; `ssh host <command>`,
+  scp/sftp/rsync and logins from inside tmux are unchanged, and `ssh -t host sh` (or `zsh`)
+  gives a plain shell. Fish is never the login shell: commands sent over SSH need POSIX syntax.
+  On macOS, an SSH session without a forwarded agent gets the desktop login's ssh-agent
+  (newest launchd socket), so `ssh-add --apple-use-keychain` and keychain-backed keys work there.
 - **zsh** (linked on macOS, where it is the login shell, and wherever zsh is installed):
   - `~/.zshenv` loads `~/.profile`, for every zsh, so `ssh mac <command>` finds your
-    tools too; `~/.zprofile` restores its PATH order after macOS's `path_helper`;
+    tools too; `~/.zprofile` restores its PATH order after macOS's `path_helper` (and does the
+    SSH login -> tmux opt-in, before `~/.zshrc` runs);
   - `~/.zshrc` loads `~/.shrc`, then makes zsh a full alternative to fish: completion
     (Homebrew's too; the full check once a day, a cached dump otherwise), shared history,
     the cached fzf and zoxide init scripts, fish's abbreviations as aliases, emacs keys,

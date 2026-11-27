@@ -33,3 +33,21 @@ fi
 
 # Interactive sh/dash reads this file at start-up (prompt, line editing, aliases).
 export ENV="$HOME/.shrc"
+
+# macOS keeps the login session's ssh-agent behind a launchd socket that SSH sessions (and tmux started from one) are
+# not told about: use the newest such socket of ours (older ones are left over from earlier logins; other users'
+# folders are private, so -S fails for them). Builtins only (-nt: dash, bash, zsh, busybox); no match elsewhere.
+if [ -z "${SSH_AUTH_SOCK-}" ]; then
+	for _s in /var/run/com.apple.launchd.*/Listeners; do
+		[ -S "$_s" ] && { [ -z "${SSH_AUTH_SOCK-}" ] || [ "$_s" -nt "$SSH_AUTH_SOCK" ]; } && SSH_AUTH_SOCK=$_s
+	done
+	unset _s
+	[ -z "${SSH_AUTH_SOCK-}" ] || export SSH_AUTH_SOCK
+fi
+
+# Opt-in, per machine (profile.local: DOTFILES_SSH_TMUX=<session>): an interactive login over SSH goes straight into
+# that tmux session (fish inside, tmux.conf), replacing this shell. Not for `ssh host <command>`, scp/sftp/rsync (no
+# login shell), nor inside tmux; `ssh -t host sh` gives a plain shell. zsh does the same in ~/.zprofile.
+if [ -n "${DOTFILES_SSH_TMUX-}" ] && [ -n "${SSH_TTY-}" ] && [ -z "${TMUX-}" ] && [ -z "${ZSH_VERSION-}" ]; then
+	case $- in *i*) ! command -v tmux >/dev/null 2>&1 || exec tmux new-session -A -s "$DOTFILES_SSH_TMUX" ;; esac
+fi
