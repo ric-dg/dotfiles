@@ -13,6 +13,10 @@
     (Homebrew's too; the full check once a day, a cached dump otherwise), shared history,
     the cached fzf and zoxide init scripts, fish's abbreviations as aliases, emacs keys,
     and the fish prompt's look (no process outside a git repo, one inside);
+  - fish-like typing: Up/Down search the history for what is already typed (built in);
+    with the packages `zsh-autosuggestions` and `zsh-syntax-highlighting` installed
+    (Homebrew, Arch, Debian/Ubuntu, Fedora, Alpine), grey suggestions from history
+    (Right arrow accepts) and command colouring, loaded only when present;
   - `~/.config/zsh/local.zsh` is yours.
 - **macOS:** zsh stays the login shell (Apple's default); fish runs inside tmux as
   elsewhere, and `zsh` is there when you prefer it. `install.sh` also compiles a

@@ -202,6 +202,10 @@ suite() { # suite SHELL
 		touch -d '2 days ago' "$H/.cache/dotfiles/zcompdump"
 		env -i HOME="$H" PATH=/usr/bin:/bin zsh -ic exit >/dev/null 2>&1
 		check "zsh: the completion dump is refreshed after the daily check" sh -c '[ -n "$(find "$1" -mmin -5)" ]' _ "$H/.cache/dotfiles/zcompdump"
+		out=$(env -i HOME="$H" PATH=/usr/bin:/bin zsh -ic 'print -r -- "keys=${widgets[up-line-or-beginning-search]%%:*} sugg=${+functions[_zsh_autosuggest_start]} hl=${+functions[_zsh_highlight]}"' 2>/dev/null | tail -1)
+		check "zsh: Up/Down history search by prefix" has "$out" 'keys=user'
+		if [ -r /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]; then check "zsh: autosuggestions loaded when installed" has "$out" 'sugg=1'; fi
+		if [ -r /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]; then check "zsh: syntax highlighting loaded when installed" has "$out" 'hl=1'; fi
 		out=$(env -i HOME="$H" PATH=/usr/bin:/bin zsh -c 'printf %s "$PATH"; printf " %s" "$EDITOR"')
 		check "zsh (non-login, e.g. ssh host cmd) gets the login environment" has "$out" ' nvim$'
 		out=$(env -i HOME="$H" PATH=/usr/bin:/bin zsh -ic 'printf %s "$PS1"' 2>&1)

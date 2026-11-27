@@ -17,7 +17,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install shells and tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq dash fish tmux neovim shellcheck zsh
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq dash fish tmux neovim shellcheck zsh zsh-autosuggestions zsh-syntax-highlighting
       - name: Lint
         run: shellcheck install.sh bin/* tests/*.sh scripts/*.sh .githooks/pre-commit
       - name: Privacy
