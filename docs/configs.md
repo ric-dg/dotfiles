@@ -10,6 +10,8 @@
   (fish inside), so `ssh host` lands in fish with nothing left behind; `ssh host <command>`,
   scp/sftp/rsync and logins from inside tmux are unchanged, and `ssh -t host sh` (or `zsh`)
   gives a plain shell. Fish is never the login shell: commands sent over SSH need POSIX syntax.
+  On macOS, an SSH session without a forwarded agent gets the desktop login's ssh-agent
+  (newest launchd socket), so `ssh-add --apple-use-keychain` and keychain-backed keys work there.
 - **zsh** (linked on macOS, where it is the login shell, and wherever zsh is installed):
   - `~/.zshenv` loads `~/.profile`, for every zsh, so `ssh mac <command>` finds your
     tools too; `~/.zprofile` restores its PATH order after macOS's `path_helper` (and does the
